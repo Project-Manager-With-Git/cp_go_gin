@@ -1,0 +1,31 @@
+package main
+
+import (
+	"os"
+
+	"{{ app_name }}/serv"
+
+	log "github.com/Golang-Tools/loggerhelper"
+	s "github.com/Golang-Tools/schema-entry-go"
+)
+
+// @title {{ app_name }}
+// @version 1.0.0
+// @description 测试
+
+// @contact.name hsz
+// @contact.email hsz1273327@gmail.com
+
+// @license.name Apache 2.0
+// @license.url http://www.apache.org/licenses/LICENSE-2.0.html
+
+// @host localhost:5000
+// @BasePath /v1_0_0
+func main() {
+	serv, err := s.New(&s.EntryPointMeta{Name: "{{ app_name }}", Usage: "{{ app_name }} [options]"}, &serv.ServNode)
+	if err != nil {
+		log.Error("create entrypoint get error", log.Dict{"err": err})
+		os.Exit(2)
+	}
+	serv.Parse(os.Args)
+}
