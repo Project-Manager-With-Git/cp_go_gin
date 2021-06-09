@@ -142,11 +142,6 @@
             "description": "数据模型存放位置,治理使用xormplus作为orm",
             "default_path": "models"
         },
-        "serv": {
-            "source": "serv",
-            "description": "服务器存放位置",
-            "default_path": "serv"
-        },
         "apitest": {
             "source": "servtest/rest_test.go.jinja",
             "description": "接口测试存放位置",
