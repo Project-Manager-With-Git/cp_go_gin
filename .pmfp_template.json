@@ -71,6 +71,10 @@
             "default": "{{ version }}"
         }
     },
+    "test": {
+        "source": "cp_python_test//simplerpc_tests",
+        "default_path": "tests"
+    },
     "components": {
         "apis_init": {
             "source": "apis/apis.go.jinja",
@@ -151,6 +155,11 @@
             "source": "servtest/sse_test.go.jinja",
             "description": "sse测试存放位置",
             "default_path": "servtest/sse_test.go"
+        },
+        "test":{
+            "source": "servtest",
+            "description": "测试存放位置",
+            "default_path": "servtest"
         }
     }
 }
