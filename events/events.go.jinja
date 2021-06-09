@@ -2,7 +2,7 @@ package events
 
 import (
 	"{{ app_name }}/events/setting"
-	"{{ app_name }}/events/timernamespace"
+	"{{ app_name }}/events/{{eventnamespace}}namespace"
 
 	"github.com/Golang-Tools/redishelper/proxy"
 	"github.com/gin-gonic/gin"
@@ -12,9 +12,9 @@ import (
 func Init(app *gin.Engine, redis_url string, redis_query_timeout_ms int) *gin.Engine {
 
 	// 计时器
-	timer := app.Group("/v1_0_0/event/timer")
+	timer := app.Group("/v{{ version | replace(".", "_") }}/event/timer")
 	proxy.Proxy.InitFromURL(redis_url)
 	setting.Init(redis_query_timeout_ms)
-	timernamespace.Init(timer)
+	{{eventnamespace}}namespace.Init(timer)
 	return app
 }

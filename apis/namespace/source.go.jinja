@@ -1,4 +1,4 @@
-package usernamespace
+package {{ apinamespace }}namespace
 
 import (
 	"net/http"
@@ -9,7 +9,7 @@ import (
 	"github.com/gin-gonic/gin/binding"
 )
 
-type UserSource struct {
+type Source struct {
 }
 
 // @Summary 获取用户列表信息
@@ -20,7 +20,7 @@ type UserSource struct {
 // @Failure 400 {string} ResultResponse "请求数据不符合要求"
 // @Failure 404 {string} ResultResponse "未找到指定资源"
 // @Router /api/user/{uid} [get]
-func (s *UserSource) Get(c *gin.Context) {
+func (s *Source) Get(c *gin.Context) {
 	u := &user.User{}
 	err := c.BindUri(u)
 	if err != nil {
@@ -44,7 +44,7 @@ func (s *UserSource) Get(c *gin.Context) {
 // @Failure 404 {string} ResultResponse "未找到指定资源"
 // @Failure 500 {string} ResultResponse "服务器处理失败"
 // @Router /api/user/{uid} [put]
-func (s *UserSource) Put(c *gin.Context) {
+func (s *Source) Put(c *gin.Context) {
 	u := &user.User{}
 	err := c.BindUri(u)
 	if err != nil {
@@ -81,7 +81,7 @@ func (s *UserSource) Put(c *gin.Context) {
 // @Failure 404 {string} ResultResponse "未找到指定资源"
 // @Failure 500 {string} ResultResponse "服务器处理失败"
 // @Router /api/user/{uid} [delete]
-func (s *UserSource) Delete(c *gin.Context) {
+func (s *Source) Delete(c *gin.Context) {
 	u := &user.User{}
 	err := c.BindUri(u)
 	if err != nil {

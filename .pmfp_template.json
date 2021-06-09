@@ -41,28 +41,86 @@
         "app_name": {
             "description": "应用名",
             "default": "{{ project_name }}"
+        },
+        "api_name": {
+            "description": "应用名",
+            "default": "simpleapi"
+        },
+        "apinamespace": {
+            "description": "api命名空间名",
+            "default": "ns"
+        },
+        "downloadnamespace": {
+            "description": "下载命名空间名",
+            "default": "ns"
+        },
+        "eventnamespace": {
+            "description": "事件命名空间名",
+            "default": "ns"
+        },
+        "author":{
+            "description": "作者",
+            "default": "{{ author }}"
+        },
+        "author_email":{
+            "description": "作者",
+            "default": "{{ author_email }}"
+        },
+        "version":{
+            "description": "项目版本",
+            "default": "{{ version }}"
         }
     },
     "components": {
         "apis_init": {
-            "source": "apis",
+            "source": "apis/apis.go.jinja",
             "description": "RESTfulapi的存放位置",
-            "default_path": "apis"
+            "default_path": "apis/apis.go"
+        },
+        "apis_simple": {
+            "source": "apis/ping.go.jinja",
+            "description": "RESTfulapi的存放位置",
+            "default_path": "apis/{{ api_name }}.go"
+        },
+        "apis_namespace": {
+            "source": "apis/namespace",
+            "description": "RESTfulapi的存放位置",
+            "default_path": "apis/{{ apinamespace }}namespace"
         },
         "apis": {
             "source": "apis",
             "description": "RESTfulapi的存放位置",
             "default_path": "apis"
         },
-        "apis": {
-            "source": "apis",
-            "description": "RESTfulapi的存放位置",
-            "default_path": "apis"
+        "downloads_init": {
+            "source": "downloads/downloads.go.jinja",
+            "description": "",
+            "default_path": "downloads/downloads.go"
+        },
+        "downloads_namespace": {
+            "source": "downloads/namespace",
+            "description": "",
+            "default_path": "downloads/{{ downloadnamespace }}namespace"
         },
         "downloads": {
             "source": "downloads",
             "description": "",
             "default_path": "downloads"
+        },
+        "events_init": {
+            "source": "events/events.go.jinja",
+            "description": "sse接口定义位置",
+            "default_path": "events/events.go"
+        },
+        "events_setting": {
+            "source": "events/setting",
+            "description": "sse接口定义位置",
+            "default_path": "events/setting"
+        },
+        "events_namespace": {
+            "source": "events/namespace",
+            "description": "sse接口定义位置",
+            "default_path": "events/{{ eventnamespace }}namespace"
         },
         "events": {
             "source": "events",
@@ -74,10 +132,10 @@
             "description": "入口函数位置",
             "default_path": "main.go"
         },
-        "middlewares": {
-            "source": "middlewares",
-            "description": "中间件和中间件工厂函数存放位置",
-            "default_path": "middlewares"
+        "simplemiddleware": {
+            "source": "middlewares/uselessmiddleware.go.jinja",
+            "description": "中间件工厂模板",
+            "default_path": "middlewares/uselessmiddleware.go"
         },
         "models": {
             "source": "models",

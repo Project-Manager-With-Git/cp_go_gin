@@ -1,7 +1,7 @@
 package apis
 
 import (
-	"{{ app_name }}/apis/usernamespace"
+	"{{ app_name }}/apis/{{ apinamespace }}namespace"
 
 	"github.com/gin-gonic/gin"
 )
@@ -12,7 +12,7 @@ func Init(app *gin.Engine) *gin.Engine {
 	// 注册api路由
 	// 用户信息
 	app = RegistPing(app)
-	user := app.Group("/v1_0_0/api/user")
-	usernamespace.Init(user)
+	user := app.Group("/v{{ version | replace(".", "_") }}/api/user")
+	{{ apinamespace }}namespace.Init(user)
 	return app
 }

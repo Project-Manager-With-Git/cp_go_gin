@@ -1,7 +1,7 @@
 package downloads
 
 import (
-	"{{ app_name }}/downloads/tablenamespace"
+	"{{ app_name }}/downloads/{{ downloadnamespace }}namespace"
 
 	"github.com/gin-gonic/gin"
 )
@@ -11,7 +11,7 @@ func Init(app *gin.Engine) *gin.Engine {
 
 	// 注册api路由
 	// 用户信息
-	user := app.Group("/v1_0_0/download/table")
-	tablenamespace.Init(user)
+	table := app.Group("/v{{ version | replace(".", "_") }}/download/table")
+	{{ downloadnamespace }}namespace.Init(table)
 	return app
 }

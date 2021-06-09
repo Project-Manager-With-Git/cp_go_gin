@@ -1,0 +1,8 @@
+package {{ downloadnamespace }}namespace
+
+import "github.com/gin-gonic/gin"
+
+func Init(group *gin.RouterGroup) {
+	ls := ListSource{}
+	group.GET("", ls.Get)
+}

@@ -1,4 +1,4 @@
-package tablenamespace
+package {{ downloadnamespace }}namespace
 
 import (
 	"fmt"
@@ -10,7 +10,7 @@ import (
 	"github.com/gin-gonic/gin/render"
 )
 
-type TableListSource struct {
+type ListSource struct {
 }
 
 // @Summary 获取用户列表信息
@@ -19,7 +19,7 @@ type TableListSource struct {
 // @Success 200 {object} UserListResponse "表格响应信息,会提供表格下载"
 // @Failure 404 {string} ResultResponse "请求不符合要求处理失败"
 // @Router /download/table [get]
-func (s *TableListSource) Get(c *gin.Context) {
+func (s *ListSource) Get(c *gin.Context) {
 	query := TableSearchQuery{}
 	err := c.ShouldBindQuery(&query)
 	if err != nil {
