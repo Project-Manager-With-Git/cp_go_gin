@@ -11,7 +11,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-type TimerSource struct {
+type Source struct {
 }
 
 // @Summary 监听指定计时器
@@ -22,7 +22,7 @@ type TimerSource struct {
 // @Failure 400 {string} ResultResponse "请求数据不符合要求"
 // @Failure 404 {string} ResultResponse "未找到指定资源"
 // @Router /event/timer/{channelid} [get]
-func (s *TimerSource) Get(c *gin.Context) {
+func (s *Source) Get(c *gin.Context) {
 	cq := &ListenQuery{}
 	err := c.BindUri(cq)
 	if err != nil {

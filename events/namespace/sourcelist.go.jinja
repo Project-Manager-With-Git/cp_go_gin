@@ -16,7 +16,7 @@ import (
 	uuid "github.com/satori/go.uuid"
 )
 
-type TimerListSource struct {
+type ListSource struct {
 }
 
 // @Summary 监听全部计时器
@@ -107,7 +107,7 @@ func sendMsg(evt *Event, es string, withgolbal bool) error {
 // @Failure 400 {string} ResultResponse "请求数据不符合要求"
 // @Failure 500 {string} ResultResponse "服务器处理失败"
 // @Router /event/timer [post]
-func (s *TimerListSource) Post(c *gin.Context) {
+func (s *ListSource) Post(c *gin.Context) {
 	cd := &CounterDownQuery{}
 	err := c.ShouldBindBodyWith(cd, binding.JSON)
 	if err != nil {
