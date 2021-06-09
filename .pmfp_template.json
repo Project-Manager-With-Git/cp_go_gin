@@ -71,10 +71,6 @@
             "default": "{{ version }}"
         }
     },
-    "test": {
-        "source": "cp_python_test//simplerpc_tests",
-        "default_path": "tests"
-    },
     "components": {
         "apis_init": {
             "source": "apis/apis.go.jinja",
