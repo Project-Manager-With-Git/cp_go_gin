@@ -74,62 +74,62 @@
     "components": {
         "apis_init": {
             "source": "apis/apis.go.jinja",
-            "description": "RESTfulapi的存放位置",
+            "description": "RESTfulapi的接口注册模板",
             "default_path": "apis/apis.go"
         },
         "apis_simple": {
             "source": "apis/ping.go.jinja",
-            "description": "RESTfulapi的存放位置",
+            "description": "RESTfulapi的简单接口实现模板(ping接口)",
             "default_path": "apis/{{ api_name }}.go"
         },
         "apis_namespace": {
             "source": "apis/namespace",
-            "description": "RESTfulapi的存放位置",
+            "description": "RESTfulapi的复杂接口实现模板",
             "default_path": "apis/{{ apinamespace }}namespace"
         },
         "apis": {
             "source": "apis",
-            "description": "RESTfulapi的存放位置",
+            "description": "RESTfulapi的整体模板",
             "default_path": "apis"
         },
         "downloads_init": {
             "source": "downloads/downloads.go.jinja",
-            "description": "",
+            "description": "下载接口注册模板",
             "default_path": "downloads/downloads.go"
         },
         "downloads_namespace": {
             "source": "downloads/namespace",
-            "description": "",
+            "description": "下载接口实现模板",
             "default_path": "downloads/{{ downloadnamespace }}namespace"
         },
         "downloads": {
             "source": "downloads",
-            "description": "",
+            "description": "下载接口的整体模板",
             "default_path": "downloads"
         },
         "events_init": {
             "source": "events/events.go.jinja",
-            "description": "sse接口定义位置",
+            "description": "sse接口注册模板",
             "default_path": "events/events.go"
         },
         "events_setting": {
             "source": "events/setting",
-            "description": "sse接口定义位置",
+            "description": "sse接口的设置项模板(主要是定时推送等业务)",
             "default_path": "events/setting"
         },
         "events_namespace": {
             "source": "events/namespace",
-            "description": "sse接口定义位置",
+            "description": "sse接口的实现模板",
             "default_path": "events/{{ eventnamespace }}namespace"
         },
         "events": {
             "source": "events",
-            "description": "sse接口定义位置",
+            "description": "sse接口的整体实现模板",
             "default_path": "events"
         },
         "main": {
             "source": "main.go.jinja",
-            "description": "入口函数位置",
+            "description": "入口函数模板",
             "default_path": "main.go"
         },
         "simplemiddleware": {
@@ -139,22 +139,22 @@
         },
         "models": {
             "source": "models",
-            "description": "数据模型存放位置,治理使用xormplus作为orm",
+            "description": "数据模型模块模板,这里使用xormplus作为orm",
             "default_path": "models"
         },
         "apitest": {
             "source": "servtest/rest_test.go.jinja",
-            "description": "接口测试存放位置",
+            "description": "接口测试模板",
             "default_path": "servtest/rest_test.go"
         },
         "ssetest": {
             "source": "servtest/sse_test.go.jinja",
-            "description": "sse测试存放位置",
+            "description": "sse测试模板",
             "default_path": "servtest/sse_test.go"
         },
         "test":{
             "source": "servtest",
-            "description": "测试存放位置",
+            "description": "测试的整体模板",
             "default_path": "servtest"
         }
     }
