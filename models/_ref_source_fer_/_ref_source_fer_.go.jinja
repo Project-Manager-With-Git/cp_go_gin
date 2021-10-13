@@ -10,7 +10,7 @@ import (
 )
 
 // {{ source | title }} 学生类
-type {{ source | title }}{} struct {
+type {{ source | title }} struct {
 	bun.BaseModel `bun:"{{ source }}" json:"-" swaggerignore:"true"`
 	ID            int32     `bun:"id,pk" json:"ID,omitempty"`
 	Name          string    `bun:"name,unique,notnull" json:"Name,omitempty"`
@@ -18,7 +18,7 @@ type {{ source | title }}{} struct {
 	DeletedAt     time.Time `bun:",soft_delete" json:"-"`
 }
 
-var _ bun.AfterCreateTableHook = (*{{ source }})(nil)
+var _ bun.AfterCreateTableHook = (*{{ source | title}})(nil)
 
 func (*{{ source | title }}) AfterCreateTable(ctx context.Context, query *bun.CreateTableQuery) error {
 	default{{ source | title }}s := []{{ source | title }}{
