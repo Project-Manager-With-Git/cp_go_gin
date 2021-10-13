@@ -1,0 +1,251 @@
+package {{ event_source }}namespace
+
+import (
+	"context"
+	"io"
+	"net/http"
+	"strconv"
+	"{{ app_name }}/events/universal"
+	"time"
+
+	log "github.com/Golang-Tools/loggerhelper"
+	"github.com/Golang-Tools/redishelper/proxy"
+	"github.com/gin-contrib/sse"
+	"github.com/gin-gonic/gin"
+	"github.com/gin-gonic/gin/binding"
+	uuid "github.com/satori/go.uuid"
+)
+
+type Event struct {
+	Id    string `json:"id,omitempty"`
+	Event string `json:"event,omitempty"`
+	Data  string `json:"data,omitempty"`
+	Retry uint   `json:"retry,omitempty"`
+}
+
+type Source struct {
+}
+
+// @Summary 监听指定计时器
+// @Tags event,{{ event_source }}
+// @Security JWT
+// @Param   channelid  path   string   true  "频道id"
+// @Produce  text/event-stream
+// @Success 200 {array} string "用户信息"  Format(chunked)
+// @Failure 400 {string} universal.ResultResponse "请求数据不符合要求"
+// @Failure 404 {string} universal.ResultResponse "未找到指定资源"
+// @Router /event/{{ event_source }}/{channelid} [get]
+func (s *Source) Listen(c *gin.Context) {
+	cq := &universal.ListenQuery{}
+	err := c.BindUri(cq)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, &universal.ResultResponse{Message: err.Error()})
+		return
+	}
+	ctx := context.Background()
+	ok, err := proxy.Proxy.SIsMember(ctx, "{{ event_source }}::channels", cq.ChannelID).Result()
+	if err != nil {
+		c.PureJSON(http.StatusInternalServerError, &universal.ResultResponse{Message: err.Error()})
+		return
+	}
+	if !ok {
+		c.PureJSON(http.StatusNotFound, &universal.ResultResponse{Message: "channel not in use"})
+		return
+	}
+	pubsub := proxy.Proxy.Subscribe(ctx, "{{ event_source }}::"+cq.ChannelID)
+	ssech := pubsub.Channel()
+	defer func() {
+		pubsub.Unsubscribe(ctx)
+		pubsub.Close()
+	}()
+
+	c.Header("Connection", "keep-alive")
+	c.Writer.Flush()
+	clientGone := c.Writer.CloseNotify()
+	c.Stream(func(w io.Writer) bool {
+		select {
+		case <-clientGone:
+			{
+				log.Debug("client close", log.Dict{
+					"channelid": "{{ event_source }}::" + cq.ChannelID,
+				})
+				return false
+			}
+		case message, isopen := <-ssech:
+			{
+				if isopen {
+					log.Debug("channel open", log.Dict{
+						"channelid": "{{ event_source }}::" + cq.ChannelID,
+					})
+					msg := Event{}
+					err := json.UnmarshalFromString(message.Payload, &msg)
+					if err != nil {
+						log.Error("UnmarshalFromString error", log.Dict{"Payload": message.Payload})
+						return true
+					}
+					if msg.Event == "EOF" {
+						log.Debug("publisher close", log.Dict{
+							"channelid": "{{ event_source }}::" + cq.ChannelID,
+						})
+						return false
+					}
+					c.Render(-1, &sse.Event{
+						Id:    msg.Id,
+						Event: msg.Event,
+						Data:  msg.Data,
+						Retry: msg.Retry,
+					})
+					return true
+				} else {
+					log.Debug("channel close", log.Dict{
+						"channelid": "{{ event_source }}::" + cq.ChannelID,
+					})
+					return false
+				}
+			}
+		}
+	})
+}
+
+// @Summary 监听全部计时器
+// @Tags event,{{ event_source }}
+// @Security JWT
+// @Accept application/json
+// @Produce text/event-stream
+// @Success 200  {array} string "用户信息"  Format(chunked)
+// @Router /event/{{ event_source }} [get]
+func (s *Source) ListenAll(c *gin.Context) {
+	ctx := context.Background()
+	pubsub := proxy.Proxy.Subscribe(ctx, "{{ event_source }}::global")
+	ssech := pubsub.Channel()
+	defer func() {
+		pubsub.Unsubscribe(ctx)
+		pubsub.Close()
+	}()
+	c.Header("Connection", "keep-alive")
+	c.Writer.Flush()
+	clientGone := c.Writer.CloseNotify()
+	c.Stream(func(w io.Writer) bool {
+		select {
+		case <-clientGone:
+			{
+				log.Debug("client close", log.Dict{
+					"channelid": "{{ event_source }}::global",
+				})
+
+				return false
+			}
+		case message, isopen := <-ssech:
+			{
+				if isopen {
+					log.Debug("channel open", log.Dict{
+						"channelid": "{{ event_source }}::global",
+					})
+					msg := Event{}
+					err := json.UnmarshalFromString(message.Payload, &msg)
+					if err != nil {
+						log.Error("UnmarshalFromString error", log.Dict{"Payload": message.Payload})
+						return true
+					}
+					if msg.Event == "EOF" {
+						log.Debug("publisher close", log.Dict{
+							"channelid": "{{ event_source }}::global",
+						})
+						return false
+					}
+					c.Render(-1, &sse.Event{
+						Id:    msg.Id,
+						Event: msg.Event,
+						Data:  msg.Data,
+						Retry: msg.Retry,
+					})
+					return true
+				} else {
+					log.Debug("channel close", log.Dict{
+						"channelid": "{{ event_source }}::global",
+					})
+					return false
+				}
+			}
+		}
+	})
+}
+func sendMsg(evt *Event, es string, withgolbal bool) error {
+	msg, err := json.MarshalToString(*evt)
+	if err != nil {
+		return err
+	}
+	ctx, cancel := proxy.Proxy.NewCtx()
+	defer cancel()
+	pipe := proxy.Proxy.TxPipeline()
+	pipe.Publish(ctx, "{{ event_source }}::"+es, msg)
+	if withgolbal {
+		pipe.Publish(ctx, "{{ event_source }}::global", msg)
+	}
+	_, err = pipe.Exec(ctx)
+	return err
+}
+
+type CreateQuery struct {
+	Seconds int `json:"second"`
+}
+
+// @Summary 创建计时器
+// @Tags event,{{ event_source }}
+// @Security JWT
+// @Accept application/json
+// @Param counterdown body CreateQuery true "倒计时信息"
+// @Produce application/json
+// @Success 200 {object} universal.CreateResponse "倒计时频道信息信息"
+// @Failure 400 {string} universal.ResultResponse "请求数据不符合要求"
+// @Failure 500 {string} universal.ResultResponse "服务器处理失败"
+// @Router /event/{{ event_source }} [post]
+func (s *Source) Create(c *gin.Context) {
+	cd := &CreateQuery{}
+	err := c.ShouldBindBodyWith(cd, binding.JSON)
+	if err != nil {
+		c.PureJSON(http.StatusBadRequest, &universal.ResultResponse{Message: err.Error()})
+		return
+	}
+	es := uuid.NewV4().String()
+	ctx, cancel := proxy.Proxy.NewCtx()
+	defer cancel()
+	_, err = proxy.Proxy.SAdd(ctx, "{{ event_source }}::channels", es).Result()
+	if err != nil {
+		c.PureJSON(http.StatusInternalServerError, &universal.ResultResponse{Message: err.Error()})
+		return
+	}
+
+	go func(count int) {
+		for i := 0; i < count; i++ {
+			err := sendMsg(&Event{
+				Id:    es + "::" + strconv.Itoa(i),
+				Event: "countdown",
+				Data:  strconv.Itoa(count - i),
+			}, es, true)
+			if err != nil {
+				log.Error("sendMsg get error", log.Dict{"err": err.Error()})
+			} else {
+				log.Info("sendMsg ok")
+			}
+			time.Sleep(time.Second)
+		}
+		time.Sleep(time.Second)
+		err := sendMsg(&Event{
+			Event: "EOF",
+		}, es, false)
+		if err != nil {
+			log.Error("sendMsg get error", log.Dict{"err": err.Error()})
+		} else {
+			log.Info("send EOF Msg ok")
+		}
+		ctx, cancel := proxy.Proxy.NewCtx()
+		defer cancel()
+		_, err = proxy.Proxy.SRem(ctx, "{{ event_source }}::channels", es).Result()
+		if err != nil {
+			c.PureJSON(http.StatusInternalServerError, &universal.ResultResponse{Message: err.Error()})
+			return
+		}
+	}(cd.Seconds)
+	c.PureJSON(200, &universal.CreateResponse{ChannelID: es})
+}

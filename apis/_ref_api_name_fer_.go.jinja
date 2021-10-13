@@ -5,9 +5,8 @@ import (
 )
 
 //RegistPing 注册ping接口到gin
-func RegistPing(app *gin.Engine) *gin.Engine {
+func RegistPing(app *gin.Engine) {
 	app.GET("/ping", func(c *gin.Context) {
 		c.String(200, "pong")
 	})
-	return app
 }

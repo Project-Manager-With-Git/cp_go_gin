@@ -1,17 +1,25 @@
 package downloads
 
 import (
-	"{{ app_name }}/downloads/{{ downloadnamespace }}namespace"
+	"{{ app_name }}/downloads/namespace"
 
+	"github.com/Golang-Tools/jwthelper/gin_middleware"
 	"github.com/gin-gonic/gin"
 )
 
 // Init 初始化路由
-func Init(app *gin.Engine) *gin.Engine {
+func Init(app *gin.Engine) {
 
 	// 注册api路由
-	// 用户信息
-	table := app.Group("/v{{ version | replace(".", "_") }}/download/table")
-	{{ downloadnamespace }}namespace.Init(table)
-	return app
+	namespace.Init(app.Group("/download"), nil)
+
+}
+
+// InitWithAuthCheck 初始化路由,路由带权限校验
+func InitWithAuthCheck(authMiddlewareFactory gin_middleware.AuthMiddlewareFactoryFunc) func(*gin.Engine) {
+
+	return func(app *gin.Engine) {
+		// 注册api路由
+		namespace.Init(app.Group("/download"), authMiddlewareFactory)
+	}
 }

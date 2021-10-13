@@ -1,0 +1,13 @@
+package models
+
+import (
+	"github.com/Golang-Tools/jwthelper"
+	"github.com/Golang-Tools/jwthelper/gin_middleware"
+	"github.com/Golang-Tools/sqlhelper"
+)
+
+func Init(db *sqlhelper.Proxy, verifier jwthelper.UniversalJwtVerifier, signer jwthelper.UniversalJwtSigner, salt string) gin_middleware.AuthMiddlewareFactoryFunc {
+	db.Regist(AuthRegistCallback(salt))
+	ctx, cancel := db.NewCtx()
+	return gin_middleware.AuthMiddlewareMaker(verifier, signer, VerifyJwtFactory(db, ctx, cancel))
+}

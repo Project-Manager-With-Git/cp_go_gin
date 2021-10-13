@@ -1,0 +1,206 @@
+package {{ source }}namespace
+
+import (
+	"net/http"
+	"{{ app_name }}/apis/universal"
+	"{{ app_name }}/models/{{ source }}"
+
+	"github.com/gin-gonic/gin"
+	"github.com/gin-gonic/gin/binding"
+)
+
+type Source struct {
+}
+
+// @Summary 获取用户列表信息
+// @Tags api,{{ source }}
+// @Security JWT
+// @Produce  application/json
+// @Param   id  path    integer   true  "{{ source | title }} ID" minimum(1)
+// @Success 200 {object} {{ source }}.{{ source | title }}
+// @Failure 400 {object} universal.ResultResponse "请求数据不符合要求"
+// @Failure 404 {object} universal.ResultResponse "未找到指定资源"
+// @Router /api/{{ source }}/{id} [get]
+func (s *Source) Get(c *gin.Context) {
+	u := &{{ source }}.{{ source | title }}{}
+	err := c.BindUri(u)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, &universal.ResultResponse{Message: err.Error()})
+		return
+	}
+	err = u.Sync()
+	if err != nil {
+		c.JSON(http.StatusNotFound, &universal.ResultResponse{Message: err.Error()})
+		return
+	}
+	c.JSON(200, u)
+}
+
+type UpdateQuery struct {
+	Name string `json:"Name"`
+}
+
+// @Summary 更新指定用户信息
+// @Tags api,{{ source }}
+// @Security JWT
+// @Produce  application/json
+// @Param   id  path    integer   true  "{{ source | title }} ID" minimum(1)
+// @Param   name body UpdateQuery true "请求的修改项"
+// @Success 200 {object} universal.ResultResponse
+// @Failure 400 {object} universal.ResultResponse "请求数据不符合要求"
+// @Failure 404 {object} universal.ResultResponse "未找到指定资源"
+// @Failure 500 {object} universal.ResultResponse "服务器处理失败"
+// @Router /api/{{ source }}/{id} [put]
+func (s *Source) Update(c *gin.Context) {
+	u := &{{ source }}.{{ source | title }}{}
+	err := c.BindUri(u)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, &universal.ResultResponse{Message: err.Error()})
+		return
+	}
+	uinput := &UpdateQuery{}
+	err = c.ShouldBindBodyWith(uinput, binding.JSON)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, &universal.ResultResponse{Message: err.Error()})
+		return
+	}
+	err = u.Sync()
+	if err != nil {
+		c.JSON(http.StatusNotFound, &universal.ResultResponse{Message: err.Error()})
+		return
+	}
+	u.Name = uinput.Name
+	err = u.Save()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, &universal.ResultResponse{Message: err.Error()})
+		return
+	}
+	c.JSON(200, &universal.ResultResponse{Succeed: true})
+
+}
+
+// @Summary 删除指定用户
+// @Tags api,{{ source }}
+// @Security JWT
+// @Produce  application/json
+// @Param   id  path    integer   true  "{{ source | title }} ID" minimum(1)
+// @Success 200 {object} universal.ResultResponse
+// @Failure 400 {object} universal.ResultResponse "请求数据不符合要求"
+// @Failure 404 {object} universal.ResultResponse "未找到指定资源"
+// @Failure 500 {object} universal.ResultResponse "服务器处理失败"
+// @Router /api/{{ source }}/{id} [delete]
+func (s *Source) Delete(c *gin.Context) {
+	u := &{{ source }}.{{ source | title }}{}
+	err := c.BindUri(u)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, &universal.ResultResponse{Message: err.Error()})
+		return
+	}
+	err = u.Sync()
+	if err != nil {
+		c.JSON(http.StatusNotFound, &universal.ResultResponse{Message: err.Error()})
+		return
+	}
+	err = u.Delete()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, &universal.ResultResponse{Message: err.Error()})
+		return
+	}
+	c.JSON(200, &universal.ResultResponse{Succeed: true})
+}
+
+type LinkResponse struct {
+	URI         string `json:"uri"`
+	Method      string `json:"method"`
+	Description string `json:"description"`
+}
+
+type ListResponse struct {
+	Description string            `json:"Description"`
+	Count       int               `json:"Count"`
+	Links       []LinkResponse    `json:"Links"`
+	{{ source | title }}s    []{{ source }}.{{ source | title }} `json:"{{ source | title }}s"`
+}
+
+// @Summary 获取用户列表信息
+// @Tags api,{{ source }}
+// @Security JWT
+// @Accept application/json
+// @Produce  application/json
+// @Success 200 {object} ListResponse "用户列表响应信息,会展示用户数量"
+// @Failure 500 {object} universal.ResultResponse "服务器处理失败"
+// @Router /api/{{ source }} [get]
+func (s *Source) List(c *gin.Context) {
+	cnt, err := {{ source }}.Count()
+	if err != nil {
+		c.PureJSON(http.StatusInternalServerError, &universal.ResultResponse{Message: err.Error()})
+		return
+	}
+	{{ source }}s, err := {{ source }}.FindList()
+	if err != nil {
+		c.PureJSON(http.StatusInternalServerError, &universal.ResultResponse{Message: err.Error()})
+		return
+	}
+	result := ListResponse{
+		Description: "测试api,{{ source | title }}总览",
+		Count:       cnt,
+		Links: []LinkResponse{
+			{
+				URI:         "/{{ source }}",
+				Method:      "POST",
+				Description: "创建一个新用户",
+			},
+			{
+				URI:         "/{{ source }}/<int:uid>",
+				Method:      "GET",
+				Description: "用户号为<id>的用户信息",
+			},
+			{
+				URI:         "/{{ source }}/<int:uid>",
+				Method:      "PUT",
+				Description: "更新用户号为<id>用户信息",
+			},
+			{
+				URI:         "/{{ source }}/<int:uid>",
+				Method:      "DELETE",
+				Description: "删除用户号为<id>用户",
+			},
+		},
+		{{ source | title }}s: *{{ source }}s,
+	}
+	c.PureJSON(200, result)
+}
+
+type CreateQuery struct {
+	Name string `json:"Name"`
+}
+
+// @Summary 创建新用户
+// @Tags api,{{ source }}
+// @Security JWT
+// @Accept application/json
+// @Produce application/json
+// @Param name body CreateQuery true "用户名信息"
+// @Success 200 {object} {{ source }}.{{ source | title }} "用户信息"
+// @Failure 400 {object} universal.ResultResponse "请求数据不符合要求"
+// @Failure 500 {object} universal.ResultResponse "服务器处理失败"
+// @Router /api/{{ source }} [post]
+func (s *Source) Create(c *gin.Context) {
+	// 请求参数校验
+	uinput := &CreateQuery{}
+	err := c.ShouldBindBodyWith(uinput, binding.JSON)
+	if err != nil {
+		c.PureJSON(http.StatusBadRequest, &universal.ResultResponse{Message: err.Error()})
+		return
+	}
+	//创建用户
+	u := &{{ source }}.{{ source | title }}{
+		Name: uinput.Name,
+	}
+	err = u.Save()
+	if err != nil {
+		c.PureJSON(http.StatusInternalServerError, &universal.ResultResponse{Message: err.Error()})
+		return
+	}
+	c.PureJSON(200, u)
+}

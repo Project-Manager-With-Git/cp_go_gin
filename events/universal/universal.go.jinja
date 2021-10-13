@@ -1,0 +1,13 @@
+package universal
+
+type ResultResponse struct {
+	Succeed bool   `json:"succeed"`
+	Message string `json:"message,omitempty"`
+}
+
+type CreateResponse struct {
+	ChannelID string `json:"channelid"`
+}
+type ListenQuery struct {
+	ChannelID string `uri:"channelid" binding:"required"`
+}

@@ -1,0 +1,27 @@
+package {{ source }}namespace
+
+import (
+	"github.com/Golang-Tools/jwthelper/gin_middleware"
+	"github.com/gin-gonic/gin"
+)
+
+func Init(group *gin.RouterGroup, authMiddlewareFactory gin_middleware.AuthMiddlewareFactoryFunc) {
+	s := Source{}
+	if authMiddlewareFactory == nil {
+		group.GET("", s.List)
+		group.GET("/", s.List)
+		group.POST("", s.Create)
+		group.POST("/", s.Create)
+		group.GET("/:uid", s.Get)
+		group.PUT("/:uid", s.Update)
+		group.DELETE("/:uid", s.Delete)
+	} else {
+		group.GET("", authMiddlewareFactory(), s.List)
+		group.GET("/", authMiddlewareFactory(), s.List)
+		group.POST("", authMiddlewareFactory(), s.Create)
+		group.POST("/", authMiddlewareFactory(), s.Create)
+		group.GET("/:uid", authMiddlewareFactory(), s.Get)
+		group.PUT("/:uid", authMiddlewareFactory(), s.Update)
+		group.DELETE("/:uid", authMiddlewareFactory(), s.Delete)
+	}
+}

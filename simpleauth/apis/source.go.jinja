@@ -1,0 +1,390 @@
+package apis
+
+import (
+	"fmt"
+	"net/http"
+	"strings"
+	"time"
+
+	"regexp"
+	"{{ app_name }}/auth/models"
+
+	"github.com/Golang-Tools/jwthelper"
+	log "github.com/Golang-Tools/loggerhelper"
+	"github.com/Golang-Tools/sqlhelper"
+	"github.com/alecthomas/jsonschema"
+	"github.com/gin-gonic/gin"
+	"github.com/xeipuuv/gojsonschema"
+)
+
+type ResultResponse struct {
+	Succeed bool   `json:"succeed"`
+	Message string `json:"message,omitempty"`
+}
+
+type AuthSourceGroup struct {
+	db     *sqlhelper.Proxy
+	signer jwthelper.UniversalJwtSigner
+	salt   string
+}
+
+func newAuthSourceGroup(db *sqlhelper.Proxy, signer jwthelper.UniversalJwtSigner, salt string) *AuthSourceGroup {
+	s := new(AuthSourceGroup)
+	s.db = db
+	s.salt = salt
+	s.signer = signer
+	return s
+}
+
+type loginInput struct {
+	UserName string `json:"Username" jsonschema:"required"`
+	Password string `json:"Password" jsonschema:"required"`
+	Exp      string `json:"Exp,omitempty" jsonschema:"enum=3d,enum=7d,enum=14d,enum=30d"`
+}
+
+// Login 用户登录接口
+// @Summary 用户登录接口
+// @Tags auth,login
+// @Accept application/json
+// @Param   input  body    loginInput   true  "登录信息"
+// @Produce  application/json
+// @Success 200 {object} jwt_pb.Token
+// @Failure 400 {object} ResultResponse "请求数据不符合要求"
+// @Failure 404 {object} ResultResponse "未找到指定资源"
+// @Failure 500 {object} ResultResponse "服务端出错"
+// @Router /auth/api/login [post]
+func (s *AuthSourceGroup) Login(c *gin.Context) {
+	uinput := loginInput{}
+	schema := jsonschema.Reflect(&uinput)
+	schemabytes, err := schema.MarshalJSON()
+	if err != nil {
+		c.JSON(http.StatusBadRequest, &ResultResponse{Message: err.Error()})
+		return
+	}
+	err = c.ShouldBindJSON(&uinput)
+	log.Info("请求解析", log.Dict{"uinput": uinput})
+	if err != nil {
+		c.JSON(http.StatusBadRequest, &ResultResponse{Message: err.Error()})
+		return
+	}
+	queryLoader := gojsonschema.NewGoLoader(uinput)
+	schemaLoader := gojsonschema.NewBytesLoader(schemabytes)
+	result, err := gojsonschema.Validate(schemaLoader, queryLoader)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, &ResultResponse{Message: err.Error()})
+		return
+	}
+	if !result.Valid() {
+		errs := result.Errors()
+		errsS := []string{}
+		for _, e := range errs {
+			errsS = append(errsS, e.String())
+		}
+		c.JSON(http.StatusBadRequest, &ResultResponse{Message: strings.Join(errsS, ";/n")})
+		return
+	}
+	// 定位用户
+	u := models.User{}
+	match, _ := regexp.MatchString("^([A-Za-z0-9_\\-\\.])+\\@([A-Za-z0-9_\\-\\.])+\\.([A-Za-z]{2,4})$", uinput.UserName)
+	if match {
+		u.Email = uinput.UserName
+	} else {
+		u.Name = uinput.UserName
+	}
+	ctx, cancel := s.db.NewCtx()
+	defer cancel()
+	has, err := u.Get(s.db, ctx)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, &ResultResponse{Message: err.Error()})
+		return
+	}
+	if !has {
+		c.JSON(http.StatusNotFound, &ResultResponse{Message: fmt.Sprintf("userinfo %s not found", uinput.UserName)})
+		return
+	}
+	// 验证密码
+	if !u.PasswordVerify(uinput.Password, s.salt) {
+		c.JSON(http.StatusForbidden, &ResultResponse{Message: "密码错误"})
+		return
+	}
+	// 构造token
+	var exp time.Duration
+	switch uinput.Exp {
+	case "3d":
+		{
+			exp = time.Duration(3*24) * time.Hour
+		}
+	case "7d":
+		{
+			exp = time.Duration(7*24) * time.Hour
+		}
+	case "14d":
+		{
+			exp = time.Duration(14*24) * time.Hour
+		}
+	case "30d":
+		{
+			exp = time.Duration(14*24) * time.Hour
+		}
+	default:
+		{
+			exp = time.Duration(5) * time.Minute
+		}
+	}
+	// hostinfo := strings.Split(c.Request.RemoteAddr, ":")
+	//ip := hostinfo[0]
+	ip := c.ClientIP()
+	payload := models.JwtPayload{
+		IP:  ip,
+		UID: u.ID,
+	}
+	token, err := u.SignJwt(s.signer, exp, &payload)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, &ResultResponse{Message: err.Error()})
+		return
+	}
+	c.JSON(200, token)
+}
+
+// ListUsers 列出全部用户
+// @Summary 列出全部用户
+// @Tags auth,user
+// @Security JWT
+// @Param Refresh-Token header string false "jwt的刷新key"
+// @Produce  application/json
+// @Success 200 {array} models.User
+// @Failure 400 {object} ResultResponse "请求数据不符合要求"
+// @Failure 404 {object} ResultResponse "未找到指定资源"
+// @Failure 500 {object} ResultResponse "服务端出错"
+// @Router /auth/api/user [get]
+func (s *AuthSourceGroup) ListUsers(c *gin.Context) {
+	ctx, cancel := s.db.NewCtx()
+	defer cancel()
+	ul, err := models.FindUserList(s.db, ctx)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, &ResultResponse{Message: err.Error()})
+		return
+	}
+	c.JSON(200, ul)
+}
+
+type createUsersInput struct {
+	Username    string `json:"Username" jsonschema:"required,pattern=^[a-zA-Z0-9_-]+$"`
+	Email       string `json:"Email" jsonschema:"required,format=email"`
+	Password    string `json:"Password" jsonschema:"required,pattern=^[a-zA-Z0-9_-]+$"`
+	AsSuperUser bool   `json:"AsSuperUser,omitempty"`
+}
+
+// CreateUser 创建新用户
+// @Summary 创建新用户
+// @Tags auth,user
+// @Security JWT
+// @Accept application/json
+// @Param Refresh-Token header string false "jwt的刷新key"
+// @Param   input  body    createUsersInput   true  "创建用户的参数"
+// @Produce  application/json
+// @Success 200 {object} models.User
+// @Failure 400 {object} ResultResponse "请求数据不符合要求"
+// @Failure 404 {object} ResultResponse "未找到指定资源"
+// @Failure 500 {object} ResultResponse "服务端出错"
+// @Router /auth/api/user [post]
+func (s *AuthSourceGroup) CreateUser(c *gin.Context) {
+	uinput := createUsersInput{}
+	schema := jsonschema.Reflect(&uinput)
+	schemabytes, err := schema.MarshalJSON()
+	if err != nil {
+		c.JSON(http.StatusBadRequest, &ResultResponse{Message: err.Error()})
+		return
+	}
+	err = c.ShouldBindJSON(&uinput)
+	log.Info("请求解析", log.Dict{"uinput": uinput})
+	if err != nil {
+		c.JSON(http.StatusBadRequest, &ResultResponse{Message: err.Error()})
+		return
+	}
+	queryLoader := gojsonschema.NewGoLoader(uinput)
+	schemaLoader := gojsonschema.NewBytesLoader(schemabytes)
+	result, err := gojsonschema.Validate(schemaLoader, queryLoader)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, &ResultResponse{Message: err.Error()})
+		return
+	}
+	if !result.Valid() {
+		errs := result.Errors()
+		errsS := []string{}
+		for _, e := range errs {
+			errsS = append(errsS, e.String())
+		}
+		c.JSON(http.StatusBadRequest, &ResultResponse{Message: strings.Join(errsS, ";/n")})
+		return
+	}
+	var u *models.User
+	if uinput.AsSuperUser {
+		u = models.NewUser(uinput.Username, uinput.Password, models.WithEmail(uinput.Email), models.AsSuperUser())
+	} else {
+		u = models.NewUser(uinput.Username, uinput.Password, models.WithEmail(uinput.Email))
+	}
+	ctx, cancel := s.db.NewCtx()
+	defer cancel()
+	has, err := u.GetOrInsert(s.db, ctx)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, &ResultResponse{Message: err.Error()})
+		return
+	}
+	if has {
+		c.JSON(http.StatusBadRequest, &ResultResponse{Message: "user already exists"})
+		return
+	}
+	c.JSON(200, u)
+}
+
+// GetUserInfo 获取指定用户的信息
+// @Summary 获取指定用户的信息
+// @Tags auth,user
+// @Security JWT
+// @Accept application/json
+// @Param Refresh-Token header string false "jwt的刷新key"
+// @Param   id  path    integer   true  "用户id"
+// @Produce  application/json
+// @Success 200 {object} models.User
+// @Failure 400 {object} ResultResponse "请求数据不符合要求"
+// @Failure 404 {object} ResultResponse "未找到指定资源"
+// @Failure 500 {object} ResultResponse "服务端出错"
+// @Router /auth/api/user/{id} [get]
+func (s *AuthSourceGroup) GetUserInfo(c *gin.Context) {
+	u := models.User{}
+	err := c.ShouldBindUri(&u)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, &ResultResponse{Message: err.Error()})
+		return
+	}
+	ctx, cancel := s.db.NewCtx()
+	defer cancel()
+	has, err := u.Get(s.db, ctx)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, &ResultResponse{Message: err.Error()})
+		return
+	}
+	if !has {
+		c.JSON(http.StatusNotFound, &ResultResponse{Message: fmt.Sprintf("userid %d not found", u.ID)})
+		return
+	}
+	c.JSON(200, u)
+}
+
+type updateUserInput struct {
+	SwitchSuperUser bool   `json:"SwitchSuperUser"`
+	NewPwd          string `json:"NewPwd,omitempty" jsonschema:"pattern=^[a-zA-Z0-9_-]+$"`
+}
+
+// UpdateUser 更新用户状态
+// @Summary 更新用户状态
+// @Tags auth,user
+// @Security JWT
+// @Accept application/json
+// @Param Refresh-Token header string false "jwt的刷新key"
+// @Param   id  path    integer   true  "用户id"
+// @Param   input  body    updateUserInput   true  "更新用户状态的参数"
+// @Produce  application/json
+// @Success 200 {object} ResultResponse
+// @Failure 400 {object} ResultResponse "请求数据不符合要求"
+// @Failure 404 {object} ResultResponse "未找到指定资源"
+// @Failure 500 {object} ResultResponse "服务端出错"
+// @Router /auth/api/user/{id} [put]
+func (s *AuthSourceGroup) UpdateUser(c *gin.Context) {
+	uinput := updateUserInput{}
+	schema := jsonschema.Reflect(&uinput)
+	schemabytes, err := schema.MarshalJSON()
+	if err != nil {
+		c.JSON(http.StatusBadRequest, &ResultResponse{Message: err.Error()})
+		return
+	}
+	err = c.ShouldBindJSON(&uinput)
+	log.Info("请求解析", log.Dict{"uinput": uinput})
+	if err != nil {
+		c.JSON(http.StatusBadRequest, &ResultResponse{Message: err.Error()})
+		return
+	}
+	queryLoader := gojsonschema.NewGoLoader(uinput)
+	schemaLoader := gojsonschema.NewBytesLoader(schemabytes)
+	result, err := gojsonschema.Validate(schemaLoader, queryLoader)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, &ResultResponse{Message: err.Error()})
+		return
+	}
+	if !result.Valid() {
+		errs := result.Errors()
+		errsS := []string{}
+		for _, e := range errs {
+			errsS = append(errsS, e.String())
+		}
+		c.JSON(http.StatusBadRequest, &ResultResponse{Message: strings.Join(errsS, ";/n")})
+		return
+	}
+	u := models.User{}
+	err = c.ShouldBindUri(&u)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, &ResultResponse{Message: err.Error()})
+		return
+	}
+	ctx, cancel := s.db.NewCtx()
+	defer cancel()
+	has, err := u.Get(s.db, ctx)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, &ResultResponse{Message: err.Error()})
+		return
+	}
+	if !has {
+		c.JSON(http.StatusNotFound, &ResultResponse{Message: fmt.Sprintf("userid %d not found", u.ID)})
+		return
+	}
+	if uinput.SwitchSuperUser {
+		err := u.SwitchSuperUser(s.db, ctx)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, &ResultResponse{Message: err.Error()})
+			return
+		}
+	}
+	if uinput.NewPwd != "" {
+		err := u.ChangePwd(s.db, ctx, uinput.NewPwd, s.salt)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, &ResultResponse{Message: err.Error()})
+			return
+		}
+	}
+	c.JSON(200, &ResultResponse{Succeed: true})
+}
+
+// DeleteUser 删除指定用户
+// @Summary 删除指定用户
+// @Tags auth,user
+// @Security JWT
+// @Accept application/json
+// @Param Refresh-Token header string false "jwt的刷新key"
+// @Param   id  path    integer   true  "用户id"
+// @Produce  application/json
+// @Success 200 {object} ResultResponse
+// @Failure 400 {object} ResultResponse "请求数据不符合要求"
+// @Failure 404 {object} ResultResponse "未找到指定资源"
+// @Failure 500 {object} ResultResponse "服务端出错"
+// @Router /auth/api/user/{id} [delete]
+func (s *AuthSourceGroup) DeleteUser(c *gin.Context) {
+	u := models.User{}
+	err := c.ShouldBindUri(&u)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, &ResultResponse{Message: err.Error()})
+		return
+	}
+	ctx, cancel := s.db.NewCtx()
+	defer cancel()
+	err = u.GetAndDelete(s.db, ctx)
+	if err != nil {
+		if err.Error() == "user not exist" {
+			c.JSON(http.StatusNotFound, &ResultResponse{Message: fmt.Sprintf("userid %d not found", u.ID)})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, &ResultResponse{Message: err.Error()})
+		return
+	}
+	c.JSON(200, &ResultResponse{Succeed: true})
+}

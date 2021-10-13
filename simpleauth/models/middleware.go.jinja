@@ -1,0 +1,151 @@
+package models
+
+import (
+	"context"
+	"errors"
+	"fmt"
+
+	"github.com/Golang-Tools/jwthelper"
+	"github.com/Golang-Tools/jwthelper/exceptions"
+	"github.com/Golang-Tools/jwthelper/gin_middleware"
+	"github.com/Golang-Tools/jwthelper/jwt_pb"
+	"github.com/Golang-Tools/jwthelper/signoptions"
+	"github.com/Golang-Tools/jwthelper/verifyoptions"
+	log "github.com/Golang-Tools/loggerhelper"
+	"github.com/scylladb/go-set/strset"
+	"github.com/uptrace/bun"
+)
+
+func VerifyJwtFactory(db bun.IDB, ctx context.Context, cancel context.CancelFunc) gin_middleware.VerifyFunc {
+	return func(Verifier jwthelper.UniversalJwtVerifier, Signer jwthelper.UniversalJwtSigner, token *jwt_pb.Token, ip string, aud []string, selfuid int64, admins ...string) (string, error) {
+		defer cancel()
+		payload := JwtPayload{}
+		if len(admins) > 0 {
+			// 超级用户的处理
+			res, err := Verifier.Verify(token, &payload, verifyoptions.WithAUDMustHasAny(admins...))
+			if err != nil {
+				if err != exceptions.ErrValidationErrorExpired {
+					return "", err
+				}
+				if res == nil {
+					return "", err
+				}
+				if res.TimeLeft <= 0 {
+					return "", err
+				}
+				u := User{
+					ID: payload.UID,
+				}
+				has, err := u.Get(db, ctx)
+				if err != nil {
+					return "", err
+				}
+				if !has {
+					return "", errors.New("user now not exists")
+				}
+				if !u.IsSuperUser {
+					return "", errors.New("user now is not superuser")
+				}
+				opts := []signoptions.SignOption{signoptions.WithSub(fmt.Sprintf("%d", payload.UID)), signoptions.WithJTI(res.Jti), signoptions.AddAud("superuser")}
+				t, err := Signer.Sign(payload, opts...)
+				if err != nil {
+					return "", err
+				}
+				if ip != "" {
+					log.Debug("check ip", log.Dict{"payload": payload, "nowip": ip})
+					if payload.IP != ip {
+						log.Warn("ip not match,login again", log.Dict{"payload": payload, "nowip": ip})
+						return "", errors.New("ip not match,login again")
+					}
+				}
+				return t.AccessToken, nil
+			}
+			if ip != "" {
+				log.Debug("check ip", log.Dict{"payload": payload, "nowip": ip})
+				if payload.IP != ip {
+					log.Warn("ip not match,login again", log.Dict{"payload": payload, "nowip": ip})
+					return "", errors.New("ip not match,login again")
+				}
+			}
+			return "", nil
+
+		} else {
+			//一般用户的处理
+			var res *jwt_pb.JwtStatus
+			var err error
+			if len(aud) > 0 {
+				res, err = Verifier.Verify(token, &payload, verifyoptions.WithAUDMustHasAny(aud...))
+			} else {
+				res, err = Verifier.Verify(token, &payload)
+			}
+			if err != nil {
+				if err != exceptions.ErrValidationErrorExpired {
+					return "", err
+				}
+				if res == nil {
+					return "", err
+				}
+				if res.TimeLeft <= 0 {
+					return "", err
+				}
+
+				opts := []signoptions.SignOption{signoptions.WithSub(fmt.Sprintf("%d", payload.UID)), signoptions.WithJTI(res.Jti)}
+
+				u := User{
+					ID: payload.UID,
+				}
+				has, err := u.Get(db, ctx)
+				if err != nil {
+					return "", err
+				}
+				if !has {
+					return "", errors.New("user now not exists")
+				}
+				if u.IsSuperUser {
+					opts = append(opts, signoptions.AddAud("superuser"))
+				} else {
+					if selfuid != int64(0) {
+						log.Debug("check sub", log.Dict{"jwt_status": res, "sub": selfuid})
+						if res.Sub != fmt.Sprintf("%d", selfuid) {
+							log.Warn("sub not match,login again", log.Dict{"jwt_status": res, "sub": selfuid})
+							return "", errors.New("sub not match,login again")
+						}
+					}
+				}
+				t, err := Signer.Sign(payload, opts...)
+				if err != nil {
+					return "", err
+				}
+				if ip != "" {
+					log.Debug("check ip", log.Dict{"payload": payload, "nowip": ip})
+					if payload.IP != ip {
+						log.Warn("ip not match,login again", log.Dict{"payload": payload, "nowip": ip})
+						return "", errors.New("ip not match,login again")
+					}
+				}
+				return t.AccessToken, nil
+			}
+
+			if ip != "" {
+				log.Debug("check ip", log.Dict{"payload": payload, "nowip": ip})
+				if payload.IP != ip {
+					log.Warn("ip not match,login again", log.Dict{"payload": payload, "nowip": ip})
+					return "", errors.New("ip not match,login again")
+				}
+			}
+			audset := strset.New(res.Aud...)
+			if audset.Has("superuser") {
+				return "", nil
+			}
+			if selfuid != int64(0) {
+				log.Debug("check sub", log.Dict{"jwt_status": res, "sub": selfuid})
+				if res.Sub != fmt.Sprintf("%d", selfuid) {
+					log.Warn("sub not match,login again", log.Dict{"jwt_status": res, "sub": selfuid})
+					return "", errors.New("sub not match,login again")
+				}
+			}
+			return "", nil
+		}
+
+	}
+}

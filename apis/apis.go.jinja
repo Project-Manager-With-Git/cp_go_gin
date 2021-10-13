@@ -1,18 +1,27 @@
+//apis 请求-响应接口绑定模块
+//如果不用做权限校验就实现Init方法,否咋实现InitWithAuthCheck
 package apis
 
 import (
-	"{{ app_name }}/apis/{{ apinamespace }}namespace"
+	"{{ app_name }}/apis/{{ source }}namespace"
 
+	"github.com/Golang-Tools/jwthelper/gin_middleware"
 	"github.com/gin-gonic/gin"
 )
 
-// Init 初始化路由
-func Init(app *gin.Engine) *gin.Engine {
+// InitWithAuthCheck 初始化路由,路由带权限校验
+func InitWithAuthCheck(authMiddlewareFactory gin_middleware.AuthMiddlewareFactoryFunc) func(*gin.Engine) {
 
 	// 注册api路由
 	// 用户信息
-	app = RegistPing(app)
-	user := app.Group("/v{{ version | replace(".", "_") }}/api/user")
-	{{ apinamespace }}namespace.Init(user)
-	return app
+	return func(app *gin.Engine) {
+		RegistPing(app)
+		{{ source }}namespace.Init(app.Group("/api/{{ source }}"), authMiddlewareFactory)
+	}
+}
+
+// Init 初始化路由,路由不带权限校验
+func Init(app *gin.Engine) {
+	RegistPing(app)
+	{{ source }}namespace.Init(app.Group("/api/{{ source }}"), nil)
 }

@@ -20,7 +20,10 @@ import (
 // @license.url http://www.apache.org/licenses/LICENSE-2.0.html
 
 // @host localhost:5000
-// @BasePath /v{{ version | replace(".", "_") }}
+// @BasePath /
+// @securityDefinitions.apikey JWT
+// @in header
+// @name Authorization
 func main() {
 	serv, err := s.New(&s.EntryPointMeta{Name: "{{ app_name }}", Usage: "{{ app_name }} [options]"}, &serv.ServNode)
 	if err != nil {

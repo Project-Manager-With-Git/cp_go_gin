@@ -1,0 +1,117 @@
+package {{ source }}
+
+import (
+	"context"
+	"errors"
+	"time"
+
+	"github.com/Golang-Tools/sqlhelper"
+	"github.com/uptrace/bun"
+)
+
+// {{ source | title }} 学生类
+type {{ source | title }}{} struct {
+	bun.BaseModel `bun:"{{ source }}" json:"-" swaggerignore:"true"`
+	ID            int32     `bun:"id,pk" json:"ID,omitempty"`
+	Name          string    `bun:"name,unique,notnull" json:"Name,omitempty"`
+	CreatedAt     time.Time `bun:",nullzero,notnull,default:current_timestamp" json:"CreatedAt,omitempty"`
+	DeletedAt     time.Time `bun:",soft_delete" json:"-"`
+}
+
+var _ bun.AfterCreateTableHook = (*{{ source }})(nil)
+
+func (*{{ source | title }}) AfterCreateTable(ctx context.Context, query *bun.CreateTableQuery) error {
+	default{{ source | title }}s := []{{ source | title }}{
+		{Name: "Tom"},
+		{Name: "Jerry"},
+	}
+	_, err := query.DB().NewInsert().Model(&default{{ source | title }}s).Exec(ctx)
+	return err
+}
+
+//GetByID 通过用户ID获得用户在数据库中的信息
+func GetByID(id int32) (*{{ source | title }}, error) {
+	newu := {{ source | title }}{}
+	ctx, cancel := sqlhelper.DB.NewCtx()
+	defer cancel()
+	err := sqlhelper.DB.NewSelect().Model(&newu).Where("id = ?", id).Scan(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return &newu, nil
+}
+
+//到数据库的操作
+// FindList 获取学生列表
+func FindList() (*[]{{ source | title }}, error) {
+	newu := []{{ source | title }}{}
+	ctx, cancel := sqlhelper.DB.NewCtx()
+	defer cancel()
+	err := sqlhelper.DB.NewSelect().Model(&newu).Order("ctime DESC").Scan(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return &newu, nil
+}
+
+//Count 查看数据库种的对象个数
+func Count() (int, error) {
+	newu := {{ source | title }}{}
+	ctx, cancel := sqlhelper.DB.NewCtx()
+	defer cancel()
+	res, err := sqlhelper.DB.NewSelect().Model(&newu).Count(ctx)
+	if err != nil {
+		return 0, err
+	}
+	return res, nil
+}
+
+func (u *{{ source | title }}) Sync() error {
+	if u.ID > 0 {
+		ctx, cancel := sqlhelper.DB.NewCtx()
+		defer cancel()
+		err := sqlhelper.DB.NewSelect().Model(u).WherePK().Scan(ctx)
+		if err != nil {
+			return err
+		}
+		return nil
+	} else {
+		return errors.New("{{ source | title }} ID <= 0")
+	}
+}
+
+//Delete 软删除用户,如果ID为>0的数则删除对应id的用户数据
+func (u *{{ source | title }}) Delete() error {
+	if u.ID > 0 {
+		ctx, cancel := sqlhelper.DB.NewCtx()
+		defer cancel()
+		_, err := sqlhelper.DB.NewDelete().Model(u).WherePK().Exec(ctx)
+		if err != nil {
+			return err
+		}
+		return nil
+	} else {
+		return errors.New("{{ source | title }} ID <= 0")
+	}
+}
+
+//Save 保存对象到目标数据库,如果有ID则更新覆盖,没有则创建
+func (u *{{ source | title }}) Save() error {
+	if u.ID > 0 {
+		ctx, cancel := sqlhelper.DB.NewCtx()
+		defer cancel()
+		_, err := sqlhelper.DB.NewInsert().Model(u).On("CONFLICT (id) DO UPDATE").Set("name = EXCLUDED.name").Exec(ctx)
+		return err
+	} else {
+		return errors.New("{{ source | title }} ID <= 0")
+	}
+}
+
+// 回调操作
+// {{ source | title }}RegistCallback 需要注册到db代理上的回调
+func {{ source | title }}RegistCallback(db *bun.DB) error {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	db.NewCreateTable().Model(&{{ source | title }}{}).IfNotExists().Exec(ctx)
+	return nil
+}

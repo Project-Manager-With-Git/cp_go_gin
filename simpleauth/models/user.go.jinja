@@ -1,0 +1,315 @@
+package models
+
+import (
+	"context"
+	"crypto/md5"
+	"database/sql"
+	"errors"
+	"fmt"
+	"io"
+	"time"
+
+	"github.com/Golang-Tools/jwthelper"
+	"github.com/Golang-Tools/jwthelper/jwt_pb"
+	"github.com/Golang-Tools/jwthelper/signoptions"
+	log "github.com/Golang-Tools/loggerhelper"
+	"github.com/uptrace/bun"
+)
+
+func strmd5(str, salt string) string {
+	w := md5.New()
+	io.WriteString(w, salt+str)
+	md5str := fmt.Sprintf("%x", w.Sum(nil))
+	return md5str
+}
+
+// User 用户类,简单实现不区分用户权限
+//超级用户可以无视权限限制
+type User struct {
+	bun.BaseModel `bun:"user,alias:u" json:"-" swaggerignore:"true"`
+	ID            int64     `bun:"id,pk" json:"ID,omitempty" uri:"id" binding:"required"`
+	Name          string    `bun:"name,unique,notnull" json:"Name"`
+	Email         string    `bun:"email,unique" json:"Email,omitempty"`
+	PasswordHash  string    `bun:"password_hash,notnull" json:"-"`
+	IsSuperUser   bool      `bun:"is_superuser" json:"IsSuperUser,omitempty"`
+	CreatedAt     time.Time `bun:"ctime,nullzero,notnull,default:current_timestamp" json:"CreatedAt,omitempty"`
+	DeletedAt     time.Time `bun:"dtime,soft_delete" json:"-"`
+}
+
+// 回调操作
+// AuthRegistCallback 需要注册到db代理上的回调
+func AuthRegistCallback(HashSecret string) func(db *bun.DB) error {
+	return func(db *bun.DB) error {
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		db.NewCreateTable().Model(&User{}).IfNotExists().Exec(ctx)
+		exists, err := db.NewSelect().Model((*User)(nil)).Where("name = 'admin'").Exists(ctx)
+		if err != nil {
+			log.Error("user exists get error", log.Dict{"err": err.Error()})
+			return err
+		}
+		if !exists {
+			u := NewUser("admin", "admin", WithSalt(HashSecret), AsSuperUser())
+			_, err := db.NewInsert().Model(u).Exec(ctx)
+			if err != nil {
+				log.Error("user Insert get error", log.Dict{"err": err.Error()})
+				return err
+			}
+			log.Info("init auth ok", log.Dict{"uid": u.ID})
+		} else {
+			log.Info("auth already inited")
+		}
+		return nil
+	}
+}
+
+//newPasswordAuthOptions 创建密码认证的参数
+type newUserOptions struct {
+	Email       string
+	IsSuperUser bool
+	Salt        string
+}
+
+type newUserOption interface {
+	Apply(*newUserOptions)
+}
+
+type funcNewUserOption struct {
+	f func(*newUserOptions)
+}
+
+func (fo *funcNewUserOption) Apply(do *newUserOptions) {
+	fo.f(do)
+}
+
+func newFuncUserOption(f func(*newUserOptions)) *funcNewUserOption {
+	return &funcNewUserOption{
+		f: f,
+	}
+}
+
+//WithEmail 设置包含email信息
+func WithEmail(email string) newUserOption {
+	return newFuncUserOption(func(o *newUserOptions) {
+		o.Email = email
+	})
+}
+
+//WithSalt hash操作加盐
+func WithSalt(salt string) newUserOption {
+	return newFuncUserOption(func(o *newUserOptions) {
+		o.Salt = salt
+	})
+}
+
+//AsSuperUser 设置用户作为SuperUser
+func AsSuperUser() newUserOption {
+	return newFuncUserOption(func(o *newUserOptions) {
+		o.IsSuperUser = true
+	})
+}
+
+//创建一个用户对象
+func NewUser(user_name, password string, opts ...newUserOption) *User {
+	c := new(User)
+	c.Name = user_name
+	defaultopt := newUserOptions{}
+	for _, opt := range opts {
+		opt.Apply(&defaultopt)
+	}
+	if defaultopt.Email != "" {
+		c.Email = defaultopt.Email
+	}
+	if defaultopt.IsSuperUser {
+		c.IsSuperUser = true
+	}
+	c.PasswordHash = strmd5(password, defaultopt.Salt)
+	return c
+}
+
+//PasswordVerify 校验密码是否匹配
+func (s *User) PasswordVerify(password, salt string) bool {
+	return s.PasswordHash == strmd5(password, salt)
+}
+
+type JwtPayload struct {
+	IP  string `json:"IP"`
+	UID int64  `json:"UID"`
+}
+
+// SignJwt 签名jwt
+func (u *User) SignJwt(Signer jwthelper.UniversalJwtSigner, exp time.Duration, payload *JwtPayload) (*jwt_pb.Token, error) {
+	opts := []signoptions.SignOption{signoptions.WithSub(fmt.Sprintf("%d", u.ID))}
+	log.Debug("signjwt", log.Dict{"uid": u.ID, "payload": payload, "issuperuser": u.IsSuperUser, "exp": exp.Minutes()})
+	if exp >= time.Hour {
+		log.Debug("get exp >= 1h")
+		opts = append(opts, signoptions.WithRefreshTTL(exp))
+	} else {
+		log.Debug("get exp < 1h")
+		opts = append(opts, signoptions.WithTTL(exp))
+	}
+	if u.IsSuperUser {
+		log.Debug("is superuser")
+		opts = append(opts, signoptions.AddAud("superuser"))
+	}
+	return Signer.Sign(payload, opts...)
+}
+
+//到数据库的操作
+// FindUserList 获取用户列表
+func FindUserList(db bun.IDB, ctx context.Context) (*[]User, error) {
+	newu := []User{}
+	err := db.NewSelect().Model(&newu).Order("ctime DESC").Scan(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return &newu, nil
+}
+
+// Exist 判断数据是否已经存在,需要有`UID`
+func (u *User) Exist(db bun.IDB, ctx context.Context) (bool, error) {
+	if u.ID == 0 {
+		return false, errors.New("必须先设置UID")
+	}
+	return db.NewSelect().Model((*User)(nil)).Where("id = ?", u.ID).Exists(ctx)
+}
+
+//Get 通过UName或者UID来获取数据库中的对应User对象
+//查找顺序为id->name->email
+//@Returns bool 是否获取到user
+//@Return error 获取数据时的报错
+func (u *User) Get(db bun.IDB, ctx context.Context) (bool, error) {
+	if u.ID == 0 && u.Name == "" && u.Email == "" {
+		return false, errors.New("必须先设置ID或者Name或者Email")
+	}
+	tq := db.NewSelect().Model(u)
+	if u.ID != 0 {
+		err := tq.Where("id = ?", u.ID).Scan(ctx)
+		if err != nil {
+			if err == sql.ErrNoRows {
+				return false, nil
+			}
+			return false, err
+		}
+		return true, nil
+	} else {
+		if u.Name != "" {
+			err := tq.Where("name = ?", u.Name).Scan(ctx)
+			if err != nil {
+				if err == sql.ErrNoRows {
+					return false, nil
+				}
+				return false, err
+			}
+			return true, nil
+		} else {
+			if u.Email != "" {
+				err := tq.Where("email = ?", u.Email).Scan(ctx)
+				if err != nil {
+					if err == sql.ErrNoRows {
+						return false, nil
+					}
+					return false, err
+				}
+				return true, nil
+			}
+			return false, errors.New("必须先设置ID或者Name或者Email")
+		}
+	}
+}
+
+//Insert 将新用户插入数据库
+func (u *User) Insert(db bun.IDB, ctx context.Context) error {
+	if u.Name == "" || u.PasswordHash == "" {
+		return errors.New("新建用户必须至少有用户名和密码")
+	}
+	if u.Name != "admin" && u.Email == "" {
+		return errors.New("新建用户必须有邮箱")
+	}
+	_, err := db.NewInsert().Model(u).Exec(ctx)
+	return err
+}
+
+//GetOrInsert 如果用户已经存在则获取用户,否则插入数据库
+//@Returns bool 是否获取到user
+//@Return error 获取数据时的报错
+func (u *User) GetOrInsert(db bun.IDB, ctx context.Context) (bool, error) {
+	has, err := u.Get(db, ctx)
+	if err != nil {
+		return false, err
+	}
+	if has {
+		return true, nil
+	} else {
+		err := u.Insert(db, ctx)
+		if err != nil {
+			return false, err
+		}
+		return false, nil
+	}
+}
+
+//SwitchSuperUser 需要包含UID以及与数据库中一致的IsSuperUser,用于设置用户是否为SuperUser用户
+func (u *User) SwitchSuperUser(db bun.IDB, ctx context.Context) error {
+	updateuser := User{
+		IsSuperUser: !u.IsSuperUser,
+	}
+	_, err := db.NewUpdate().Model(&updateuser).Column("is_superuser").Where("id = ?", u.ID).Exec(ctx)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+//GetAndSwitchSuperUser 需要包含UID或者UName,用于设置用户是否为SuperUser用户
+func (u *User) GetAndSwitchSuperUser(db bun.IDB, ctx context.Context) error {
+	has, err := u.Get(db, ctx)
+	if err != nil {
+		return err
+	}
+	if !has {
+		return errors.New("user not exist")
+	}
+	return u.SwitchSuperUser(db, ctx)
+}
+
+//ChangePwd 需要包含UID,用于重置密码
+func (u *User) ChangePwd(db bun.IDB, ctx context.Context, newpwd, salt string) error {
+	newpwdhash := strmd5(newpwd, salt)
+	updateuser := User{
+		PasswordHash: newpwdhash,
+	}
+	_, err := db.NewUpdate().Model(&updateuser).Column("password_hash").Where("id = ?", u.ID).Exec(ctx)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+//GetAndChangePwd 需要包含UID或者UName,用于重置密码
+func (u *User) GetAndChangePwd(db bun.IDB, ctx context.Context, newpwd, salt string) error {
+	has, err := u.Get(db, ctx)
+	if err != nil {
+		return err
+	}
+	if !has {
+		return errors.New("user not exist")
+	}
+	return u.ChangePwd(db, ctx, newpwd, salt)
+}
+
+// GetAndDelete 尝试获取并删除用户信息
+func (u *User) GetAndDelete(db bun.IDB, ctx context.Context) error {
+	has, err := u.Get(db, ctx)
+	if err != nil {
+		return err
+	}
+	if !has {
+		return errors.New("user not exist")
+	}
+	_, err = db.NewDelete().Model(u).WherePK().Exec(ctx)
+	if err != nil {
+		return err
+	}
+	return nil
+}

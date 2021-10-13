@@ -1,0 +1,22 @@
+package {{ event_source }}namespace
+
+import (
+	"github.com/Golang-Tools/jwthelper/gin_middleware"
+	"github.com/gin-gonic/gin"
+	jsoniter "github.com/json-iterator/go"
+)
+
+var json = jsoniter.ConfigCompatibleWithStandardLibrary
+
+func Init(group *gin.RouterGroup, authMiddlewareFactory gin_middleware.AuthMiddlewareFactoryFunc) {
+	s := Source{}
+	if authMiddlewareFactory == nil {
+		group.GET("/{{ event_source }}", s.ListenAll)
+		group.POST("/{{ event_source }}", s.Create)
+		group.GET("/{{ event_source }}/:channelid", s.Listen)
+	} else {
+		group.GET("/{{ event_source }}", authMiddlewareFactory(), s.ListenAll)
+		group.POST("/{{ event_source }}", authMiddlewareFactory(), s.Create)
+		group.GET("/{{ event_source }}/:channelid", authMiddlewareFactory(), s.Listen)
+	}
+}

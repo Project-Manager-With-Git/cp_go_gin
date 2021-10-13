@@ -8,7 +8,7 @@ import (
 
 	"{{ app_name }}/apis"
 	"{{ app_name }}/models"
-	"{{ app_name }}/models/user"
+	"{{ app_name }}/models/{{ source }}"
 
 	log "github.com/Golang-Tools/loggerhelper"
 	"github.com/gin-gonic/gin"
@@ -34,27 +34,27 @@ func TestPingRoute(t *testing.T) {
 	assert.Equal(t, 200, w.Code)
 	assert.Equal(t, "pong", w.Body.String())
 }
-func TestListGetRoute(t *testing.T) {
+func Test{{ source | title }}ListGetRoute(t *testing.T) {
 	router := setupRouter()
 
 	w := httptest.NewRecorder()
-	req, _ := http.NewRequest("GET", "/v{{ version | replace(".", "_") }}/api/{{ namespace }}", nil)
+	req, _ := http.NewRequest("GET", "/api/{{ source }}", nil)
 	router.ServeHTTP(w, req)
 	assert.Equal(t, 200, w.Code)
 	log.Info("get response", log.Dict{"body": w.Body.String()})
 	// json.Unmarshal(,)
-	assert.Contains(t, w.Body.String(), "测试api,User总览")
+	// assert.Contains(t, w.Body.String(), "xxxx")
 }
 
-func TestGetRoute(t *testing.T) {
+func Test{{ source | title }}GetRoute(t *testing.T) {
 	router := setupRouter()
 
 	w := httptest.NewRecorder()
-	req, _ := http.NewRequest("GET", "/v{{ version | replace(".", "_") }}/api/{{ namespace }}/1", nil)
+	req, _ := http.NewRequest("GET", "/api/{{ source }}/1", nil)
 	router.ServeHTTP(w, req)
 	assert.Equal(t, 200, w.Code)
 	log.Info("get response", log.Dict{"body": w.Body.String()})
-	u := user.User{}
+	{# u := {{ source }}.{{ source | title }}{}
 	json.Unmarshal(w.Body.Bytes(), &u)
-	assert.Contains(t, u.Name, "admin")
+	assert.Contains(t, u.Name, "admin") #}
 }

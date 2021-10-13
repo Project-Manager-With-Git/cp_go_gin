@@ -1,4 +1,4 @@
-package {{ downloadnamespace }}namespace
+package namespace
 
 import (
 	"fmt"
@@ -6,24 +6,28 @@ import (
 	"net/http"
 	"time"
 
+	"{{ app_name }}/downloads/universal"
+
 	"github.com/gin-gonic/gin"
 	"github.com/gin-gonic/gin/render"
 )
 
-type ListSource struct {
+type Source struct {
 }
 
-// @Summary 获取用户列表信息
-// @Tags downloads table
+// @Summary 获取下载项
+// @Tags download,{{ download_name }}
+// @Security JWT
+// @Param during query universal.TableSearchQuery false "请求的时间区间"
 // @Produce ext/csv
-// @Success 200 {object} UserListResponse "表格响应信息,会提供表格下载"
-// @Failure 404 {string} ResultResponse "请求不符合要求处理失败"
-// @Router /download/table [get]
-func (s *ListSource) Get(c *gin.Context) {
-	query := TableSearchQuery{}
+// @Success 200 {string} string "表格响应信息,会提供表格下载"
+// @Failure 404 {object} universal.ResultResponse "请求不符合要求处理失败"
+// @Router /download/{{ download_name }} [get]
+func (s *Source) {{ download_name | title}}(c *gin.Context) {
+	query := universal.TableSearchQuery{}
 	err := c.ShouldBindQuery(&query)
 	if err != nil {
-		c.PureJSON(http.StatusBadRequest, &ResultResponse{Message: err.Error()})
+		c.PureJSON(http.StatusBadRequest, &universal.ResultResponse{Message: err.Error()})
 		return
 	}
 	table_name := ""

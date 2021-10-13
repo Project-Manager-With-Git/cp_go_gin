@@ -43,20 +43,20 @@
             "default": "{{ project_name }}"
         },
         "api_name": {
-            "description": "应用名",
-            "default": "simpleapi"
+            "description": "api文件名",
+            "default": "simple"
         },
-        "apinamespace": {
-            "description": "api命名空间名",
-            "default": "ns"
+        "source": {
+            "description": "资源名",
+            "default": "example"
         },
-        "downloadnamespace": {
+        "download_name": {
             "description": "下载命名空间名",
-            "default": "ns"
+            "default": "example"
         },
-        "eventnamespace": {
+        "event_source": {
             "description": "事件命名空间名",
-            "default": "ns"
+            "default": "example"
         },
         "author":{
             "description": "作者",
@@ -72,6 +72,11 @@
         }
     },
     "components": {
+        "simple_auth": {
+            "source": "simpleauth",
+            "description": "最简单的用户权限控制模块,两级权限,只有超级用户可以控制用户权限操作",
+            "default_path": "apis/apis.go"
+        },
         "apis_init": {
             "source": "apis/apis.go.jinja",
             "description": "RESTfulapi的接口注册模板",
@@ -80,12 +85,17 @@
         "apis_simple": {
             "source": "apis/ping.go.jinja",
             "description": "RESTfulapi的简单接口实现模板(ping接口)",
-            "default_path": "apis/{{ api_name }}.go"
+            "default_path": "apis/{{ api_name }}api.go"
+        },
+        "apis_universal": {
+            "source": "apis/universal",
+            "description": "RESTfulapi的复杂接口的通用对象",
+            "default_path": "apis/universal"
         },
         "apis_namespace": {
-            "source": "apis/namespace",
+            "source": "apis/_ref_source_fer_namespace",
             "description": "RESTfulapi的复杂接口实现模板",
-            "default_path": "apis/{{ apinamespace }}namespace"
+            "default_path": "apis/{{ source }}namespace"
         },
         "apis": {
             "source": "apis",
@@ -97,10 +107,15 @@
             "description": "下载接口注册模板",
             "default_path": "downloads/downloads.go"
         },
+        "downloads_universal": {
+            "source": "downloads/universal",
+            "description": "下载接口的通用对象",
+            "default_path": "downloads/universal"
+        },
         "downloads_namespace": {
             "source": "downloads/namespace",
             "description": "下载接口实现模板",
-            "default_path": "downloads/{{ downloadnamespace }}namespace"
+            "default_path": "downloads/namespace"
         },
         "downloads": {
             "source": "downloads",
@@ -112,15 +127,15 @@
             "description": "sse接口注册模板",
             "default_path": "events/events.go"
         },
-        "events_setting": {
-            "source": "events/setting",
-            "description": "sse接口的设置项模板(主要是定时推送等业务)",
-            "default_path": "events/setting"
+        "events_universal": {
+            "source": "events/universal",
+            "description": "sse接口的通用对象",
+            "default_path": "events/universal"
         },
         "events_namespace": {
-            "source": "events/namespace",
+            "source": "events/_ref_event_source_fer_namespace",
             "description": "sse接口的实现模板",
-            "default_path": "events/{{ eventnamespace }}namespace"
+            "default_path": "events/{{ event_source }}namespace"
         },
         "events": {
             "source": "events",
@@ -132,10 +147,20 @@
             "description": "入口函数模板",
             "default_path": "main.go"
         },
-        "simplemiddleware": {
-            "source": "middlewares/uselessmiddleware.go.jinja",
+        "middleware": {
+            "source": "middlewares",
             "description": "中间件工厂模板",
-            "default_path": "middlewares/uselessmiddleware.go"
+            "default_path": "middlewares"
+        },
+        "models_init":{
+            "source": "models/models.go.jinja",
+            "description": "数据模型注册模板",
+            "default_path": "models/models.go"
+        },
+        "models_source":{
+            "source": "models/_ref_source_fer_",
+            "description": "数据模型注册模板",
+            "default_path": "models/{{ source }}"
         },
         "models": {
             "source": "models",

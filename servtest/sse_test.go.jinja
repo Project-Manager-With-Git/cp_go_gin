@@ -16,7 +16,7 @@ import (
 )
 
 func TestTimer(t *testing.T) {
-	req, _ := http.NewRequest("POST", "http://localhost:5000/v{{ version | replace(".", "_") }}/event/timer", bytes.NewBuffer([]byte(`{"second": 10}`)))
+	req, _ := http.NewRequest("POST", "http://localhost:5000/event/timer", bytes.NewBuffer([]byte(`{"second": 10}`)))
 	req.Header.Set("Content-Type", "application/json")
 	httpclient := &http.Client{}
 	resp, err := httpclient.Do(req)
@@ -30,7 +30,7 @@ func TestTimer(t *testing.T) {
 	msg := timernamespace.CounterDownResponse{}
 	json.Unmarshal(body, &msg)
 	log.Info("get res", log.Dict{"msg": msg})
-	sse_client := sse_test.NewClient("http://localhost:5000/v{{ version | replace(".", "_") }}/event/timer/" + msg.ChannelID)
+	sse_client := sse_test.NewClient("http://localhost:5000/event/timer/" + msg.ChannelID)
 	sse_client.Subscribe("messages", func(msg *sse_test.Event) {
 		// Got some data!
 		fmt.Println(string(msg.Data))
