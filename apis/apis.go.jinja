@@ -1,0 +1,18 @@
+//apis 请求-响应接口绑定模块
+//如果不用做权限校验就实现Init方法,否咋实现InitWithAuthCheck
+package apis
+
+import (
+	"{{ app_name }}/apis/{{ source }}namespace"
+
+	"github.com/Golang-Tools/optparams"
+	"github.com/gin-gonic/gin"
+)
+
+// Init 初始化路由,路由不带权限校验
+func Init(app *gin.Engine, opts ...optparams.Option[Options]) {
+	RegistPing(app)
+	opt := DefaultOptions
+	optparams.GetOption(&opt, opts...)
+	{{ source }}namespace.Init(app.Group("/api/{{ source }}"), opt.AuthMiddlewareFactory)
+}
