@@ -1,0 +1,155 @@
+package models
+
+import (
+	"errors"
+	"fmt"
+
+	"github.com/Golang-Tools/jwthelper/v2"
+	"github.com/Golang-Tools/jwthelper/v2/exceptions"
+	"github.com/Golang-Tools/jwthelper/v2/gin_middleware"
+	"github.com/Golang-Tools/jwthelper/v2/jwt_pb"
+	signerproxy "github.com/Golang-Tools/jwthelper/v2/signerproxy"
+	"github.com/Golang-Tools/jwthelper/v2/signoptions"
+	verifierproxy "github.com/Golang-Tools/jwthelper/v2/verifierproxy"
+	"github.com/Golang-Tools/jwthelper/v2/verifyoptions"
+	log "github.com/Golang-Tools/loggerhelper/v2"
+	"github.com/Golang-Tools/optparams"
+	"github.com/scylladb/go-set/strset"
+)
+
+//VerifyJwt 校验Jwt的逻辑的函数 满足gin_middleware.VerifyFunc
+func VerifyJwt(Verifier jwthelper.UniversalJwtVerifier, Signer jwthelper.UniversalJwtSigner, token *jwt_pb.Token, ip string, aud []string, selfuid int64, admins ...string) (string, error) {
+	ctx, cancel := AuthDB.NewCtx()
+	defer cancel()
+	payload := JwtPayload{}
+	if len(admins) > 0 {
+		// 超级用户的处理
+		res, err := Verifier.Verify(token, &payload, verifyoptions.WithAUDMustHasAny(admins...))
+		if err != nil {
+			if err != exceptions.ErrValidationErrorExpired {
+				return "", err
+			}
+			if res == nil {
+				return "", err
+			}
+			if res.TimeLeft <= 0 {
+				return "", err
+			}
+			u := User{
+				ID: payload.UID,
+			}
+			has, err := u.Get(AuthDB, ctx)
+			if err != nil {
+				return "", err
+			}
+			if !has {
+				return "", errors.New("user now not exists")
+			}
+			if !u.IsSuperUser {
+				return "", errors.New("user now is not superuser")
+			}
+			opts := []optparams.Option[signoptions.SignOptions]{signoptions.WithSub(fmt.Sprintf("%d", payload.UID)), signoptions.WithJTI(res.Jti), signoptions.AddAud("superuser")}
+			t, err := Signer.Sign(payload, opts...)
+			if err != nil {
+				return "", err
+			}
+			if ip != "" {
+				log.Debug("check ip", log.Dict{"payload": payload, "nowip": ip})
+				if payload.IP != ip {
+					log.Warn("ip not match,login again", log.Dict{"payload": payload, "nowip": ip})
+					return "", errors.New("ip not match,login again")
+				}
+			}
+			return t.AccessToken, nil
+		}
+		if ip != "" {
+			log.Debug("check ip", log.Dict{"payload": payload, "nowip": ip})
+			if payload.IP != ip {
+				log.Warn("ip not match,login again", log.Dict{"payload": payload, "nowip": ip})
+				return "", errors.New("ip not match,login again")
+			}
+		}
+		return "", nil
+
+	} else {
+		//一般用户的处理
+		var res *jwt_pb.JwtStatus
+		var err error
+		if len(aud) > 0 {
+			res, err = Verifier.Verify(token, &payload, verifyoptions.WithAUDMustHasAny(aud...))
+		} else {
+			res, err = Verifier.Verify(token, &payload)
+		}
+		if err != nil {
+			if err != exceptions.ErrValidationErrorExpired {
+				return "", err
+			}
+			if res == nil {
+				return "", err
+			}
+			if res.TimeLeft <= 0 {
+				return "", err
+			}
+
+			opts := []optparams.Option[signoptions.SignOptions]{signoptions.WithSub(fmt.Sprintf("%d", payload.UID)), signoptions.WithJTI(res.Jti)}
+
+			u := User{
+				ID: payload.UID,
+			}
+			has, err := u.Get(AuthDB, ctx)
+			if err != nil {
+				return "", err
+			}
+			if !has {
+				return "", errors.New("user now not exists")
+			}
+			if u.IsSuperUser {
+				opts = append(opts, signoptions.AddAud("superuser"))
+			} else {
+				if selfuid != int64(0) {
+					log.Debug("check sub", log.Dict{"jwt_status": res, "sub": selfuid})
+					if res.Sub != fmt.Sprintf("%d", selfuid) {
+						log.Warn("sub not match,login again", log.Dict{"jwt_status": res, "sub": selfuid})
+						return "", errors.New("sub not match,login again")
+					}
+				}
+			}
+			t, err := Signer.Sign(payload, opts...)
+			if err != nil {
+				return "", err
+			}
+			if ip != "" {
+				log.Debug("check ip", log.Dict{"payload": payload, "nowip": ip})
+				if payload.IP != ip {
+					log.Warn("ip not match,login again", log.Dict{"payload": payload, "nowip": ip})
+					return "", errors.New("ip not match,login again")
+				}
+			}
+			return t.AccessToken, nil
+		}
+
+		if ip != "" {
+			log.Debug("check ip", log.Dict{"payload": payload, "nowip": ip})
+			if payload.IP != ip {
+				log.Warn("ip not match,login again", log.Dict{"payload": payload, "nowip": ip})
+				return "", errors.New("ip not match,login again")
+			}
+		}
+		audset := strset.New(res.Aud...)
+		if audset.Has("superuser") {
+			return "", nil
+		}
+		if selfuid != int64(0) {
+			log.Debug("check sub", log.Dict{"jwt_status": res, "sub": selfuid})
+			if res.Sub != fmt.Sprintf("%d", selfuid) {
+				log.Warn("sub not match,login again", log.Dict{"jwt_status": res, "sub": selfuid})
+				return "", errors.New("sub not match,login again")
+			}
+		}
+		return "", nil
+	}
+
+}
+
+//用于校验权限的中间件
+var AuthMiddlewareFactory = gin_middleware.AuthMiddlewareMaker(verifierproxy.Default, signerproxy.Default, VerifyJwt)

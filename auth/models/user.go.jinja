@@ -9,10 +9,11 @@ import (
 	"io"
 	"time"
 
-	"github.com/Golang-Tools/jwthelper"
-	"github.com/Golang-Tools/jwthelper/jwt_pb"
-	"github.com/Golang-Tools/jwthelper/signoptions"
-	log "github.com/Golang-Tools/loggerhelper"
+	"github.com/Golang-Tools/jwthelper/v2"
+	"github.com/Golang-Tools/jwthelper/v2/jwt_pb"
+	"github.com/Golang-Tools/jwthelper/v2/signoptions"
+	log "github.com/Golang-Tools/loggerhelper/v2"
+	"github.com/Golang-Tools/optparams"
 	"github.com/uptrace/bun"
 )
 
@@ -63,60 +64,12 @@ func AuthRegistCallback(HashSecret string) func(db *bun.DB) error {
 	}
 }
 
-//newPasswordAuthOptions 创建密码认证的参数
-type newUserOptions struct {
-	Email       string
-	IsSuperUser bool
-	Salt        string
-}
-
-type newUserOption interface {
-	Apply(*newUserOptions)
-}
-
-type funcNewUserOption struct {
-	f func(*newUserOptions)
-}
-
-func (fo *funcNewUserOption) Apply(do *newUserOptions) {
-	fo.f(do)
-}
-
-func newFuncUserOption(f func(*newUserOptions)) *funcNewUserOption {
-	return &funcNewUserOption{
-		f: f,
-	}
-}
-
-//WithEmail 设置包含email信息
-func WithEmail(email string) newUserOption {
-	return newFuncUserOption(func(o *newUserOptions) {
-		o.Email = email
-	})
-}
-
-//WithSalt hash操作加盐
-func WithSalt(salt string) newUserOption {
-	return newFuncUserOption(func(o *newUserOptions) {
-		o.Salt = salt
-	})
-}
-
-//AsSuperUser 设置用户作为SuperUser
-func AsSuperUser() newUserOption {
-	return newFuncUserOption(func(o *newUserOptions) {
-		o.IsSuperUser = true
-	})
-}
-
 //创建一个用户对象
-func NewUser(user_name, password string, opts ...newUserOption) *User {
+func NewUser(user_name, password string, opts ...optparams.Option[NewUserOptions]) *User {
 	c := new(User)
 	c.Name = user_name
-	defaultopt := newUserOptions{}
-	for _, opt := range opts {
-		opt.Apply(&defaultopt)
-	}
+	defaultopt := NewUserOptions{}
+	optparams.GetOption(&defaultopt, opts...)
 	if defaultopt.Email != "" {
 		c.Email = defaultopt.Email
 	}
@@ -139,7 +92,7 @@ type JwtPayload struct {
 
 // SignJwt 签名jwt
 func (u *User) SignJwt(Signer jwthelper.UniversalJwtSigner, exp time.Duration, payload *JwtPayload) (*jwt_pb.Token, error) {
-	opts := []signoptions.SignOption{signoptions.WithSub(fmt.Sprintf("%d", u.ID))}
+	opts := []optparams.Option[signoptions.SignOptions]{signoptions.WithSub(fmt.Sprintf("%d", u.ID))}
 	log.Debug("signjwt", log.Dict{"uid": u.ID, "payload": payload, "issuperuser": u.IsSuperUser, "exp": exp.Minutes()})
 	if exp >= time.Hour {
 		log.Debug("get exp >= 1h")

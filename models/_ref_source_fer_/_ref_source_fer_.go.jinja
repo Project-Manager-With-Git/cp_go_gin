@@ -5,7 +5,8 @@ import (
 	"errors"
 	"time"
 
-	"github.com/Golang-Tools/sqlhelper"
+	log "github.com/Golang-Tools/loggerhelper/v2"
+	"github.com/Golang-Tools/sqlhelper/v2/bunproxy"
 	"github.com/uptrace/bun"
 )
 
@@ -18,23 +19,13 @@ type {{ source | title }} struct {
 	DeletedAt     time.Time `bun:",soft_delete" json:"-"`
 }
 
-var _ bun.AfterCreateTableHook = (*{{ source | title}})(nil)
-
-func (*{{ source | title }}) AfterCreateTable(ctx context.Context, query *bun.CreateTableQuery) error {
-	default{{ source | title }}s := []{{ source | title }}{
-		{Name: "Tom"},
-		{Name: "Jerry"},
-	}
-	_, err := query.DB().NewInsert().Model(&default{{ source | title }}s).Exec(ctx)
-	return err
-}
 
 //GetByID 通过用户ID获得用户在数据库中的信息
 func GetByID(id int32) (*{{ source | title }}, error) {
 	newu := {{ source | title }}{}
-	ctx, cancel := sqlhelper.DB.NewCtx()
+	ctx, cancel := bunproxy.Default.NewCtx()
 	defer cancel()
-	err := sqlhelper.DB.NewSelect().Model(&newu).Where("id = ?", id).Scan(ctx)
+	err := bunproxy.Default.NewSelect().Model(&newu).Where("id = ?", id).Scan(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -45,9 +36,9 @@ func GetByID(id int32) (*{{ source | title }}, error) {
 // FindList 获取学生列表
 func FindList() (*[]{{ source | title }}, error) {
 	newu := []{{ source | title }}{}
-	ctx, cancel := sqlhelper.DB.NewCtx()
+	ctx, cancel := bunproxy.Default.NewCtx()
 	defer cancel()
-	err := sqlhelper.DB.NewSelect().Model(&newu).Order("ctime DESC").Scan(ctx)
+	err := bunproxy.Default.NewSelect().Model(&newu).Order("ctime DESC").Scan(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -57,9 +48,9 @@ func FindList() (*[]{{ source | title }}, error) {
 //Count 查看数据库种的对象个数
 func Count() (int, error) {
 	newu := {{ source | title }}{}
-	ctx, cancel := sqlhelper.DB.NewCtx()
+	ctx, cancel := bunproxy.Default.NewCtx()
 	defer cancel()
-	res, err := sqlhelper.DB.NewSelect().Model(&newu).Count(ctx)
+	res, err := bunproxy.Default.NewSelect().Model(&newu).Count(ctx)
 	if err != nil {
 		return 0, err
 	}
@@ -68,9 +59,9 @@ func Count() (int, error) {
 
 func (u *{{ source | title }}) Sync() error {
 	if u.ID > 0 {
-		ctx, cancel := sqlhelper.DB.NewCtx()
+		ctx, cancel := bunproxy.Default.NewCtx()
 		defer cancel()
-		err := sqlhelper.DB.NewSelect().Model(u).WherePK().Scan(ctx)
+		err := bunproxy.Default.NewSelect().Model(u).WherePK().Scan(ctx)
 		if err != nil {
 			return err
 		}
@@ -83,9 +74,9 @@ func (u *{{ source | title }}) Sync() error {
 //Delete 软删除用户,如果ID为>0的数则删除对应id的用户数据
 func (u *{{ source | title }}) Delete() error {
 	if u.ID > 0 {
-		ctx, cancel := sqlhelper.DB.NewCtx()
+		ctx, cancel := bunproxy.Default.NewCtx()
 		defer cancel()
-		_, err := sqlhelper.DB.NewDelete().Model(u).WherePK().Exec(ctx)
+		_, err := bunproxy.Default.NewDelete().Model(u).WherePK().Exec(ctx)
 		if err != nil {
 			return err
 		}
@@ -98,9 +89,9 @@ func (u *{{ source | title }}) Delete() error {
 //Save 保存对象到目标数据库,如果有ID则更新覆盖,没有则创建
 func (u *{{ source | title }}) Save() error {
 	if u.ID > 0 {
-		ctx, cancel := sqlhelper.DB.NewCtx()
+		ctx, cancel := bunproxy.Default.NewCtx()
 		defer cancel()
-		_, err := sqlhelper.DB.NewInsert().Model(u).On("CONFLICT (id) DO UPDATE").Set("name = EXCLUDED.name").Exec(ctx)
+		_, err := bunproxy.Default.NewInsert().Model(u).On("CONFLICT (id) DO UPDATE").Set("name = EXCLUDED.name").Exec(ctx)
 		return err
 	} else {
 		return errors.New("{{ source | title }} ID <= 0")
@@ -112,6 +103,34 @@ func (u *{{ source | title }}) Save() error {
 func {{ source | title }}RegistCallback(db *bun.DB) error {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	db.NewCreateTable().Model(&{{ source | title }}{}).IfNotExists().Exec(ctx)
+	_, err := db.NewCreateTable().Model(&{{ source | title }}{}).IfNotExists().Exec(ctx)
+	if err != nil {
+		log.Error("NewCreateTable get err", log.Dict{"err": err.Error()})
+		return err
+	}
+	log.Info("NewCreateTable ok")
+
+	count, err := db.NewSelect().Model((*{{ source | title }})(nil)).Count(ctx)
+	if err != nil {
+		log.Error("user exists get error", log.Dict{"err": err.Error()})
+		return err
+	}
+	if count == 0 {
+		// default{{ source | title }}s := []{{ source | title }}{
+		// 	{Name: "Tom"},
+		// 	{Name: "Jerry"},
+		// }
+		default{{ source | title }} := &{{ source | title }}{Name: "Tom"}
+		_, err := db.NewInsert().Model(default{{ source | title }}).Exec(ctx)
+		if err != nil {
+			log.Error("Insert {{ source }} get error", log.Dict{"err": err.Error()})
+			return err
+		}
+		log.Info("Insert {{ source }} ok")
+		return nil
+	} else {
+		log.Info("model already inited")
+	}
+
 	return nil
 }

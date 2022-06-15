@@ -1,0 +1,81 @@
+package auth
+
+import (
+	"github.com/Golang-Tools/grpcsdk"
+	"github.com/Golang-Tools/jwthelper/v2"
+	"github.com/Golang-Tools/jwthelper/v2/sdk"
+	"github.com/Golang-Tools/optparams"
+	"github.com/Golang-Tools/sqlhelper/v2/bunproxy"
+)
+
+// type ApiBinder func(gin_middleware.AuthMiddlewareFactoryFunc) func(*gin.Engine)
+
+//InitOptions auth模块初始化参数
+type InitOptions struct {
+	DBURL           string
+	DBProxyinitopts []optparams.Option[bunproxy.Options]
+	// ApiBinders      []ApiBinder
+	Verifier jwthelper.UniversalJwtVerifier
+	Signer   jwthelper.UniversalJwtSigner
+}
+
+//WithDBURL 设置初始化数据库的url
+func WithDBURL(url string) optparams.Option[InitOptions] {
+	return optparams.NewFuncOption(func(o *InitOptions) {
+		o.DBURL = url
+	})
+}
+
+//WithDBProxyInitOpts 设置初始化数据库的配置
+func WithDBProxyInitOpts(opts ...optparams.Option[bunproxy.Options]) optparams.Option[InitOptions] {
+	return optparams.NewFuncOption(func(o *InitOptions) {
+		o.DBProxyinitopts = opts
+	})
+}
+
+// //WithApiBinders 设置使用api绑定器
+// func WithApiBinders(binders ...ApiBinder) optparams.Option[InitOptions] {
+// 	return optparams.NewFuncOption(func(o *InitOptions) {
+// 		o.ApiBinders = binders
+// 	})
+// }
+
+//WithSigner 设置使用的签名器
+func WithSigner(opts ...optparams.Option[jwthelper.SignerOptions]) optparams.Option[InitOptions] {
+	return optparams.NewFuncOption(func(o *InitOptions) {
+		signer, err := jwthelper.NewSigner(opts...)
+		if err != nil {
+			panic(err)
+		}
+		o.Signer = signer
+	})
+}
+
+//WithRemoteSigner 设置使用的远程签名器
+func WithRemoteSigner(opts ...optparams.Option[grpcsdk.SDKConfig]) optparams.Option[InitOptions] {
+	return optparams.NewFuncOption(func(o *InitOptions) {
+		signer := sdk.NewSignerSDK()
+		signer.Init(opts...)
+		o.Signer = signer
+	})
+}
+
+//WithVerifier 设置使用的签名校验器
+func WithVerifier(opts ...optparams.Option[jwthelper.VerifierOptions]) optparams.Option[InitOptions] {
+	return optparams.NewFuncOption(func(o *InitOptions) {
+		verifier, err := jwthelper.NewVerifier(opts...)
+		if err != nil {
+			panic(err)
+		}
+		o.Verifier = verifier
+	})
+}
+
+//WithRemoteVerifier 设置使用的远程签名校验器
+func WithRemoteVerifier(opts ...optparams.Option[grpcsdk.SDKConfig]) optparams.Option[InitOptions] {
+	return optparams.NewFuncOption(func(o *InitOptions) {
+		verifier := sdk.NewVerifierSDK()
+		verifier.Init(opts...)
+		o.Verifier = verifier
+	})
+}

@@ -5,8 +5,8 @@ import (
 
 	"{{ app_name }}/serv"
 
-	log "github.com/Golang-Tools/loggerhelper"
-	s "github.com/Golang-Tools/schema-entry-go"
+	log "github.com/Golang-Tools/loggerhelper/v2"
+	s "github.com/Golang-Tools/schema-entry-go/v2"
 )
 
 // @title {{ app_name }}
@@ -25,7 +25,7 @@ import (
 // @in header
 // @name Authorization
 func main() {
-	serv, err := s.New(&s.EntryPointMeta{Name: "{{ app_name }}", Usage: "{{ app_name }} [options]"}, &serv.ServNode)
+	serv, err := s.NewEndPoint(new(serv.Serv), s.WithName("{{ app_name }}"), s.WithUsage("{{ app_name }} [options]"))
 	if err != nil {
 		log.Error("create entrypoint get error", log.Dict{"err": err})
 		os.Exit(2)

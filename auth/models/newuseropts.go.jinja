@@ -1,0 +1,33 @@
+package models
+
+import (
+	"github.com/Golang-Tools/optparams"
+)
+
+//NewPasswordAuthOptions 创建密码认证的参数
+type NewUserOptions struct {
+	Email       string
+	IsSuperUser bool
+	Salt        string
+}
+
+//WithEmail 设置包含email信息
+func WithEmail(email string) optparams.Option[NewUserOptions] {
+	return optparams.NewFuncOption(func(o *NewUserOptions) {
+		o.Email = email
+	})
+}
+
+//WithSalt hash操作加盐
+func WithSalt(salt string) optparams.Option[NewUserOptions] {
+	return optparams.NewFuncOption(func(o *NewUserOptions) {
+		o.Salt = salt
+	})
+}
+
+//AsSuperUser 设置用户作为SuperUser
+func AsSuperUser() optparams.Option[NewUserOptions] {
+	return optparams.NewFuncOption(func(o *NewUserOptions) {
+		o.IsSuperUser = true
+	})
+}

@@ -4,11 +4,11 @@ package models
 import (
 	"{{ app_name }}/models/{{ source }}"
 
-	"github.com/Golang-Tools/sqlhelper"
+	"github.com/Golang-Tools/sqlhelper/v2/bunproxy"
 )
 
 //Init 初始化数据模型模块
 // 主要是挂载代理对象的回调
 func Init() {
-	sqlhelper.DB.Regist({{ source }}.{{ source | title }}RegistCallback)
+	bunproxy.Default.Regist({{ source }}.{{ source | title }}RegistCallback)
 }

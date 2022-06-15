@@ -3,15 +3,14 @@ package apis
 import (
 	"{{ app_name }}/auth/models"
 
-	"github.com/Golang-Tools/jwthelper"
-	"github.com/Golang-Tools/jwthelper/gin_middleware"
-	"github.com/Golang-Tools/sqlhelper"
+	"github.com/Golang-Tools/jwthelper/v2"
+	"github.com/Golang-Tools/jwthelper/v2/gin_middleware"
 	"github.com/gin-gonic/gin"
 )
 
-func Init(app *gin.Engine, db *sqlhelper.Proxy, signer jwthelper.UniversalJwtSigner, salt string, authMiddlewareFactory gin_middleware.AuthMiddlewareFactoryFunc) {
+func Init(app *gin.Engine, signer jwthelper.UniversalJwtSigner, salt string, authMiddlewareFactory gin_middleware.AuthMiddlewareFactoryFunc) {
 	auth := app.Group("/auth/api")
-	s := newAuthSourceGroup(db, signer, salt)
+	s := newAuthSourceGroup(signer, salt)
 	checksuperusermiddle := authMiddlewareFactory(gin_middleware.WithCheckIP(), gin_middleware.WithCheckAdmin("superuser"))
 	checkselfmiddle := authMiddlewareFactory(gin_middleware.WithCheckSelf(func(c *gin.Context) (int64, error) {
 		u := models.User{}

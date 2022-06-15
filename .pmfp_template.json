@@ -73,9 +73,9 @@
     },
     "components": {
         "simple_auth": {
-            "source": "simpleauth",
+            "source": "auth",
             "description": "最简单的用户权限控制模块,两级权限,只有超级用户可以控制用户权限操作",
-            "default_path": "apis/apis.go"
+            "default_path": "auth"
         },
         "apis_init": {
             "source": "apis/apis.go.jinja",

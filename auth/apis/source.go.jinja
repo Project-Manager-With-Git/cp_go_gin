@@ -9,9 +9,8 @@ import (
 	"regexp"
 	"{{ app_name }}/auth/models"
 
-	"github.com/Golang-Tools/jwthelper"
-	log "github.com/Golang-Tools/loggerhelper"
-	"github.com/Golang-Tools/sqlhelper"
+	"github.com/Golang-Tools/jwthelper/v2"
+	log "github.com/Golang-Tools/loggerhelper/v2"
 	"github.com/alecthomas/jsonschema"
 	"github.com/gin-gonic/gin"
 	"github.com/xeipuuv/gojsonschema"
@@ -23,14 +22,12 @@ type ResultResponse struct {
 }
 
 type AuthSourceGroup struct {
-	db     *sqlhelper.Proxy
 	signer jwthelper.UniversalJwtSigner
 	salt   string
 }
 
-func newAuthSourceGroup(db *sqlhelper.Proxy, signer jwthelper.UniversalJwtSigner, salt string) *AuthSourceGroup {
+func newAuthSourceGroup(signer jwthelper.UniversalJwtSigner, salt string) *AuthSourceGroup {
 	s := new(AuthSourceGroup)
-	s.db = db
 	s.salt = salt
 	s.signer = signer
 	return s
@@ -91,9 +88,9 @@ func (s *AuthSourceGroup) Login(c *gin.Context) {
 	} else {
 		u.Name = uinput.UserName
 	}
-	ctx, cancel := s.db.NewCtx()
+	ctx, cancel := models.AuthDB.NewCtx()
 	defer cancel()
-	has, err := u.Get(s.db, ctx)
+	has, err := u.Get(models.AuthDB, ctx)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, &ResultResponse{Message: err.Error()})
 		return
@@ -158,9 +155,9 @@ func (s *AuthSourceGroup) Login(c *gin.Context) {
 // @Failure 500 {object} ResultResponse "服务端出错"
 // @Router /auth/api/user [get]
 func (s *AuthSourceGroup) ListUsers(c *gin.Context) {
-	ctx, cancel := s.db.NewCtx()
+	ctx, cancel := models.AuthDB.NewCtx()
 	defer cancel()
-	ul, err := models.FindUserList(s.db, ctx)
+	ul, err := models.FindUserList(models.AuthDB, ctx)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, &ResultResponse{Message: err.Error()})
 		return
@@ -224,9 +221,9 @@ func (s *AuthSourceGroup) CreateUser(c *gin.Context) {
 	} else {
 		u = models.NewUser(uinput.Username, uinput.Password, models.WithEmail(uinput.Email))
 	}
-	ctx, cancel := s.db.NewCtx()
+	ctx, cancel := models.AuthDB.NewCtx()
 	defer cancel()
-	has, err := u.GetOrInsert(s.db, ctx)
+	has, err := u.GetOrInsert(models.AuthDB, ctx)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, &ResultResponse{Message: err.Error()})
 		return
@@ -258,9 +255,9 @@ func (s *AuthSourceGroup) GetUserInfo(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, &ResultResponse{Message: err.Error()})
 		return
 	}
-	ctx, cancel := s.db.NewCtx()
+	ctx, cancel := models.AuthDB.NewCtx()
 	defer cancel()
-	has, err := u.Get(s.db, ctx)
+	has, err := u.Get(models.AuthDB, ctx)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, &ResultResponse{Message: err.Error()})
 		return
@@ -327,9 +324,9 @@ func (s *AuthSourceGroup) UpdateUser(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, &ResultResponse{Message: err.Error()})
 		return
 	}
-	ctx, cancel := s.db.NewCtx()
+	ctx, cancel := models.AuthDB.NewCtx()
 	defer cancel()
-	has, err := u.Get(s.db, ctx)
+	has, err := u.Get(models.AuthDB, ctx)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, &ResultResponse{Message: err.Error()})
 		return
@@ -339,14 +336,14 @@ func (s *AuthSourceGroup) UpdateUser(c *gin.Context) {
 		return
 	}
 	if uinput.SwitchSuperUser {
-		err := u.SwitchSuperUser(s.db, ctx)
+		err := u.SwitchSuperUser(models.AuthDB, ctx)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, &ResultResponse{Message: err.Error()})
 			return
 		}
 	}
 	if uinput.NewPwd != "" {
-		err := u.ChangePwd(s.db, ctx, uinput.NewPwd, s.salt)
+		err := u.ChangePwd(models.AuthDB, ctx, uinput.NewPwd, s.salt)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, &ResultResponse{Message: err.Error()})
 			return
@@ -375,9 +372,9 @@ func (s *AuthSourceGroup) DeleteUser(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, &ResultResponse{Message: err.Error()})
 		return
 	}
-	ctx, cancel := s.db.NewCtx()
+	ctx, cancel := models.AuthDB.NewCtx()
 	defer cancel()
-	err = u.GetAndDelete(s.db, ctx)
+	err = u.GetAndDelete(models.AuthDB, ctx)
 	if err != nil {
 		if err.Error() == "user not exist" {
 			c.JSON(http.StatusNotFound, &ResultResponse{Message: fmt.Sprintf("userid %d not found", u.ID)})

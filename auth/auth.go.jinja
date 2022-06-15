@@ -1,0 +1,49 @@
+// auth 最简单的用户认证模块
+// 逻辑是所有注册用户可以访问除用户管理系统外的接口,但只有admin用户可以访问用户管理系统
+// 用户无法自己注册必须由admin用户添加
+// 适用于一些需要快速实现的toB的管理系统
+package auth
+
+import (
+	"{{ app_name }}/auth/apis"
+	"{{ app_name }}/auth/models"
+
+	"github.com/Golang-Tools/jwthelper/v2"
+	"github.com/Golang-Tools/optparams"
+	"github.com/gin-gonic/gin"
+)
+
+type Close func()
+
+//Init 初始化组件
+func Init(app *gin.Engine, salt string, opts ...optparams.Option[InitOptions]) (Close, error) {
+	dopts := InitOptions{}
+	for _, opt := range opts {
+		opt.Apply(&dopts)
+	}
+
+	if dopts.Signer == nil {
+		signer, err := jwthelper.NewSigner(jwthelper.WithSignSecretKey([]byte(salt)))
+		if err != nil {
+			return nil, err
+		}
+		dopts.Signer = signer
+	}
+	if dopts.Verifier == nil {
+		verifier, err := jwthelper.NewVerifier(jwthelper.WithVerifySecretKey([]byte(salt)))
+		if err != nil {
+			return nil, err
+		}
+		dopts.Verifier = verifier
+	}
+	models.Init(dopts.Verifier, dopts.Signer, salt)
+
+	apis.Init(app, dopts.Signer, salt, models.AuthMiddlewareFactory)
+	err := models.AuthDB.Init(dopts.DBURL, dopts.DBProxyinitopts...)
+	if err != nil {
+		return nil, err
+	}
+	return func() {
+		models.AuthDB.Close()
+	}, err
+}

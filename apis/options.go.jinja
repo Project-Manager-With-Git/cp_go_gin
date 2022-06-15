@@ -1,0 +1,21 @@
+package apis
+
+import (
+	"{{ app_name }}/auth/models"
+
+	"github.com/Golang-Tools/jwthelper/v2/gin_middleware"
+	"github.com/Golang-Tools/optparams"
+)
+
+type Options struct {
+	AuthMiddlewareFactory gin_middleware.AuthMiddlewareFactoryFunc
+}
+
+var DefaultOptions = Options{}
+
+//WithAuthMiddlewareFactory 设置使用AuthMiddlewareFactory
+func WithAuthMiddlewareFactory() optparams.Option[Options] {
+	return optparams.NewFuncOption(func(o *Options) {
+		o.AuthMiddlewareFactory = models.AuthMiddlewareFactory
+	})
+}
