@@ -14,7 +14,7 @@ import (
 	"github.com/Golang-Tools/jwthelper/v2/verifyoptions"
 	log "github.com/Golang-Tools/loggerhelper/v2"
 	"github.com/Golang-Tools/optparams"
-	"github.com/scylladb/go-set/strset"
+	mapset "github.com/deckarep/golang-set/v2"
 )
 
 //VerifyJwt 校验Jwt的逻辑的函数 满足gin_middleware.VerifyFunc
@@ -135,8 +135,8 @@ func VerifyJwt(Verifier jwthelper.UniversalJwtVerifier, Signer jwthelper.Univers
 				return "", errors.New("ip not match,login again")
 			}
 		}
-		audset := strset.New(res.Aud...)
-		if audset.Has("superuser") {
+		audset := mapset.NewSet(res.Aud...)
+		if audset.Contains("superuser") {
 			return "", nil
 		}
 		if selfuid != int64(0) {

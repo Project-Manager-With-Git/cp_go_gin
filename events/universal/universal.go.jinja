@@ -1,5 +1,10 @@
 package universal
 
+import (
+	log "github.com/Golang-Tools/loggerhelper/v2"
+	redis "github.com/Golang-Tools/redishelper/v2/redisproxy"
+)
+
 type ResultResponse struct {
 	Succeed bool   `json:"succeed"`
 	Message string `json:"message,omitempty"`
@@ -10,4 +15,11 @@ type CreateResponse struct {
 }
 type ListenQuery struct {
 	ChannelID string `uri:"channelid" binding:"required"`
+}
+
+var Channel *redis.RedisProxy
+var Logger *log.Log
+
+func init() {
+	Channel = redis.New()
 }

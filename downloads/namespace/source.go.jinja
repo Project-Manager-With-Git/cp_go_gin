@@ -16,14 +16,14 @@ type Source struct {
 }
 
 // @Summary 获取下载项
-// @Tags download,{{ download_name }}
+// @Tags download,example
 // @Security JWT
 // @Param during query universal.TableSearchQuery false "请求的时间区间"
 // @Produce ext/csv
 // @Success 200 {string} string "表格响应信息,会提供表格下载"
 // @Failure 404 {object} universal.ResultResponse "请求不符合要求处理失败"
-// @Router /download/{{ download_name }} [get]
-func (s *Source) {{ download_name | title}}(c *gin.Context) {
+// @Router /download/example [get]
+func (s *Source) Example(c *gin.Context) {
 	query := universal.TableSearchQuery{}
 	err := c.ShouldBindQuery(&query)
 	if err != nil {

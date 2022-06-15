@@ -1,19 +1,23 @@
-package apis
+package events
 
 import (
 	"{{ app_name }}/auth/models"
 
 	"github.com/Golang-Tools/jwthelper/v2/gin_middleware"
 	"github.com/Golang-Tools/optparams"
+	redis "github.com/Golang-Tools/redishelper/v2/redisproxy"
 )
 
 type Options struct {
 	AppVersion            string
 	AppName               string
 	AuthMiddlewareFactory gin_middleware.AuthMiddlewareFactoryFunc
+	RedisOpts             []optparams.Option[redis.Options]
 }
 
-var DefaultOptions = Options{}
+var DefaultOptions = Options{
+	RedisOpts: []optparams.Option[redis.Options]{},
+}
 
 //WithAppVersion 设置模块所在应用的版本
 func WithAppVersion(version string) optparams.Option[Options] {
@@ -34,4 +38,24 @@ func WithAuthMiddlewareFactory() optparams.Option[Options] {
 	return optparams.NewFuncOption(func(o *Options) {
 		o.AuthMiddlewareFactory = models.AuthMiddlewareFactory
 	})
+}
+
+//r 使用optparams.Option[redis.Options]设置
+func r(opts ...optparams.Option[redis.Options]) optparams.Option[Options] {
+	return optparams.NewFuncOption(func(o *Options) {
+		if o.RedisOpts == nil {
+			o.RedisOpts = []optparams.Option[redis.Options]{}
+		}
+		o.RedisOpts = append(o.RedisOpts, opts...)
+	})
+}
+
+//WithQueryTimeoutMS 设置最大请求超时,单位ms
+func WithQueryTimeoutMS(QueryTimeout int) optparams.Option[Options] {
+	return r(redis.WithQueryTimeoutMS(QueryTimeout))
+}
+
+//WithURL 使用特定url设置单机redis的连接
+func WithURL(URL string) optparams.Option[Options] {
+	return r(redis.WithURL(URL))
 }

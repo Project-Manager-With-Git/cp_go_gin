@@ -2,24 +2,21 @@ package downloads
 
 import (
 	"{{ app_name }}/downloads/namespace"
+	"{{ app_name }}/downloads/universal"
 
-	"github.com/Golang-Tools/jwthelper/gin_middleware"
+	log "github.com/Golang-Tools/loggerhelper/v2"
+	"github.com/Golang-Tools/optparams"
 	"github.com/gin-gonic/gin"
 )
 
 // Init 初始化路由
-func Init(app *gin.Engine) {
-
+func Init(app *gin.Engine, opts ...optparams.Option[Options]) {
+	opt := DefaultOptions
+	optparams.GetOption(&opt, opts...)
+	log.Set(log.WithExtFields(log.Dict{"app_name": opt.AppName, "app_version": opt.AppVersion, "module": "downloads"}))
+	universal.Logger = log.Export()
+	log.Set(log.WithExtFields(log.Dict{}))
 	// 注册api路由
-	namespace.Init(app.Group("/download"), nil)
+	namespace.Init(app.Group("/download"), opt.AuthMiddlewareFactory)
 
-}
-
-// InitWithAuthCheck 初始化路由,路由带权限校验
-func InitWithAuthCheck(authMiddlewareFactory gin_middleware.AuthMiddlewareFactoryFunc) func(*gin.Engine) {
-
-	return func(app *gin.Engine) {
-		// 注册api路由
-		namespace.Init(app.Group("/download"), authMiddlewareFactory)
-	}
 }

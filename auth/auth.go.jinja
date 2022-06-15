@@ -7,8 +7,10 @@ package auth
 import (
 	"{{ app_name }}/auth/apis"
 	"{{ app_name }}/auth/models"
+	"{{ app_name }}/auth/universal"
 
 	"github.com/Golang-Tools/jwthelper/v2"
+	log "github.com/Golang-Tools/loggerhelper/v2"
 	"github.com/Golang-Tools/optparams"
 	"github.com/gin-gonic/gin"
 )
@@ -16,30 +18,31 @@ import (
 type Close func()
 
 //Init 初始化组件
-func Init(app *gin.Engine, salt string, opts ...optparams.Option[InitOptions]) (Close, error) {
-	dopts := InitOptions{}
-	for _, opt := range opts {
-		opt.Apply(&dopts)
-	}
+func Init(app *gin.Engine, salt string, opts ...optparams.Option[Options]) (Close, error) {
+	opt := Options{}
+	optparams.GetOption(&opt, opts...)
 
-	if dopts.Signer == nil {
+	log.Set(log.WithExtFields(log.Dict{"app_name": opt.AppName, "app_version": opt.AppVersion, "module": "auth"}))
+	universal.Logger = log.Export()
+	log.Set(log.WithExtFields(log.Dict{}))
+	if opt.Signer == nil {
 		signer, err := jwthelper.NewSigner(jwthelper.WithSignSecretKey([]byte(salt)))
 		if err != nil {
 			return nil, err
 		}
-		dopts.Signer = signer
+		opt.Signer = signer
 	}
-	if dopts.Verifier == nil {
+	if opt.Verifier == nil {
 		verifier, err := jwthelper.NewVerifier(jwthelper.WithVerifySecretKey([]byte(salt)))
 		if err != nil {
 			return nil, err
 		}
-		dopts.Verifier = verifier
+		opt.Verifier = verifier
 	}
-	models.Init(dopts.Verifier, dopts.Signer, salt)
+	models.Init(opt.Verifier, opt.Signer, salt)
 
-	apis.Init(app, dopts.Signer, salt, models.AuthMiddlewareFactory)
-	err := models.AuthDB.Init(dopts.DBURL, dopts.DBProxyinitopts...)
+	apis.Init(app, opt.Signer, salt, models.AuthMiddlewareFactory)
+	err := models.AuthDB.Init(opt.DBURL, opt.DBProxyinitopts...)
 	if err != nil {
 		return nil, err
 	}

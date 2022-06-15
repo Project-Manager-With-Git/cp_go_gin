@@ -1,16 +1,16 @@
 package namespace
 
 import (
-	"github.com/Golang-Tools/jwthelper/gin_middleware"
+	"github.com/Golang-Tools/jwthelper/v2/gin_middleware"
 	"github.com/gin-gonic/gin"
 )
 
 func Init(group *gin.RouterGroup, authMiddlewareFactory gin_middleware.AuthMiddlewareFactoryFunc) {
 	s := Source{}
 	if authMiddlewareFactory == nil {
-		group.GET("/{{download_name}}", s.{{ download_name | title}})
+		group.GET("/example", s.Example)
 
 	} else {
-		group.GET("/{{download_name}}", authMiddlewareFactory(), s.{{ download_name | title }})
+		group.GET("/example", authMiddlewareFactory(), s.Example)
 	}
 }

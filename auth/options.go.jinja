@@ -10,8 +10,10 @@ import (
 
 // type ApiBinder func(gin_middleware.AuthMiddlewareFactoryFunc) func(*gin.Engine)
 
-//InitOptions auth模块初始化参数
-type InitOptions struct {
+//Options auth模块初始化参数
+type Options struct {
+	AppVersion      string
+	AppName         string
 	DBURL           string
 	DBProxyinitopts []optparams.Option[bunproxy.Options]
 	// ApiBinders      []ApiBinder
@@ -19,30 +21,37 @@ type InitOptions struct {
 	Signer   jwthelper.UniversalJwtSigner
 }
 
+//WithAppVersion 设置模块所在应用的版本
+func WithAppVersion(version string) optparams.Option[Options] {
+	return optparams.NewFuncOption(func(o *Options) {
+		o.AppVersion = version
+	})
+}
+
+//WithAppName 设置模块所在应用的名字
+func WithAppName(name string) optparams.Option[Options] {
+	return optparams.NewFuncOption(func(o *Options) {
+		o.AppName = name
+	})
+}
+
 //WithDBURL 设置初始化数据库的url
-func WithDBURL(url string) optparams.Option[InitOptions] {
-	return optparams.NewFuncOption(func(o *InitOptions) {
+func WithDBURL(url string) optparams.Option[Options] {
+	return optparams.NewFuncOption(func(o *Options) {
 		o.DBURL = url
 	})
 }
 
 //WithDBProxyInitOpts 设置初始化数据库的配置
-func WithDBProxyInitOpts(opts ...optparams.Option[bunproxy.Options]) optparams.Option[InitOptions] {
-	return optparams.NewFuncOption(func(o *InitOptions) {
+func WithDBProxyInitOpts(opts ...optparams.Option[bunproxy.Options]) optparams.Option[Options] {
+	return optparams.NewFuncOption(func(o *Options) {
 		o.DBProxyinitopts = opts
 	})
 }
 
-// //WithApiBinders 设置使用api绑定器
-// func WithApiBinders(binders ...ApiBinder) optparams.Option[InitOptions] {
-// 	return optparams.NewFuncOption(func(o *InitOptions) {
-// 		o.ApiBinders = binders
-// 	})
-// }
-
 //WithSigner 设置使用的签名器
-func WithSigner(opts ...optparams.Option[jwthelper.SignerOptions]) optparams.Option[InitOptions] {
-	return optparams.NewFuncOption(func(o *InitOptions) {
+func WithSigner(opts ...optparams.Option[jwthelper.SignerOptions]) optparams.Option[Options] {
+	return optparams.NewFuncOption(func(o *Options) {
 		signer, err := jwthelper.NewSigner(opts...)
 		if err != nil {
 			panic(err)
@@ -52,8 +61,8 @@ func WithSigner(opts ...optparams.Option[jwthelper.SignerOptions]) optparams.Opt
 }
 
 //WithRemoteSigner 设置使用的远程签名器
-func WithRemoteSigner(opts ...optparams.Option[grpcsdk.SDKConfig]) optparams.Option[InitOptions] {
-	return optparams.NewFuncOption(func(o *InitOptions) {
+func WithRemoteSigner(opts ...optparams.Option[grpcsdk.SDKConfig]) optparams.Option[Options] {
+	return optparams.NewFuncOption(func(o *Options) {
 		signer := sdk.NewSignerSDK()
 		signer.Init(opts...)
 		o.Signer = signer
@@ -61,8 +70,8 @@ func WithRemoteSigner(opts ...optparams.Option[grpcsdk.SDKConfig]) optparams.Opt
 }
 
 //WithVerifier 设置使用的签名校验器
-func WithVerifier(opts ...optparams.Option[jwthelper.VerifierOptions]) optparams.Option[InitOptions] {
-	return optparams.NewFuncOption(func(o *InitOptions) {
+func WithVerifier(opts ...optparams.Option[jwthelper.VerifierOptions]) optparams.Option[Options] {
+	return optparams.NewFuncOption(func(o *Options) {
 		verifier, err := jwthelper.NewVerifier(opts...)
 		if err != nil {
 			panic(err)
@@ -72,8 +81,8 @@ func WithVerifier(opts ...optparams.Option[jwthelper.VerifierOptions]) optparams
 }
 
 //WithRemoteVerifier 设置使用的远程签名校验器
-func WithRemoteVerifier(opts ...optparams.Option[grpcsdk.SDKConfig]) optparams.Option[InitOptions] {
-	return optparams.NewFuncOption(func(o *InitOptions) {
+func WithRemoteVerifier(opts ...optparams.Option[grpcsdk.SDKConfig]) optparams.Option[Options] {
+	return optparams.NewFuncOption(func(o *Options) {
 		verifier := sdk.NewVerifierSDK()
 		verifier.Init(opts...)
 		o.Verifier = verifier

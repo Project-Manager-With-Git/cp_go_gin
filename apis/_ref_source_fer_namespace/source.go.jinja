@@ -22,7 +22,7 @@ type Source struct {
 // @Failure 404 {object} universal.ResultResponse "未找到指定资源"
 // @Router /api/{{ source }}/{id} [get]
 func (s *Source) Get(c *gin.Context) {
-	u := &{{ source }}.{{ source | title }}{}
+	u := &{{ source }}.{{ source|title }}{}
 	err := c.BindUri(u)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, &universal.ResultResponse{Message: err.Error()})

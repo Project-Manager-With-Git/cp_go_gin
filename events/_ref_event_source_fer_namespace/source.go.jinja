@@ -8,8 +8,6 @@ import (
 	"{{ app_name }}/events/universal"
 	"time"
 
-	log "github.com/Golang-Tools/loggerhelper"
-	"github.com/Golang-Tools/redishelper/proxy"
 	"github.com/gin-contrib/sse"
 	"github.com/gin-gonic/gin"
 	"github.com/gin-gonic/gin/binding"
@@ -43,7 +41,7 @@ func (s *Source) Listen(c *gin.Context) {
 		return
 	}
 	ctx := context.Background()
-	ok, err := proxy.Proxy.SIsMember(ctx, "{{ event_source }}::channels", cq.ChannelID).Result()
+	ok, err := universal.Channel.SIsMember(ctx, "{{ event_source }}::channels", cq.ChannelID).Result()
 	if err != nil {
 		c.PureJSON(http.StatusInternalServerError, &universal.ResultResponse{Message: err.Error()})
 		return
@@ -52,7 +50,7 @@ func (s *Source) Listen(c *gin.Context) {
 		c.PureJSON(http.StatusNotFound, &universal.ResultResponse{Message: "channel not in use"})
 		return
 	}
-	pubsub := proxy.Proxy.Subscribe(ctx, "{{ event_source }}::"+cq.ChannelID)
+	pubsub := universal.Channel.Subscribe(ctx, "{{ event_source }}::"+cq.ChannelID)
 	ssech := pubsub.Channel()
 	defer func() {
 		pubsub.Unsubscribe(ctx)
@@ -66,7 +64,7 @@ func (s *Source) Listen(c *gin.Context) {
 		select {
 		case <-clientGone:
 			{
-				log.Debug("client close", log.Dict{
+				universal.Logger.Debug("client close", map[string]any{
 					"channelid": "{{ event_source }}::" + cq.ChannelID,
 				})
 				return false
@@ -74,17 +72,17 @@ func (s *Source) Listen(c *gin.Context) {
 		case message, isopen := <-ssech:
 			{
 				if isopen {
-					log.Debug("channel open", log.Dict{
+					universal.Logger.Debug("channel open", map[string]any{
 						"channelid": "{{ event_source }}::" + cq.ChannelID,
 					})
 					msg := Event{}
 					err := json.UnmarshalFromString(message.Payload, &msg)
 					if err != nil {
-						log.Error("UnmarshalFromString error", log.Dict{"Payload": message.Payload})
+						universal.Logger.Error("UnmarshalFromString error", map[string]any{"Payload": message.Payload})
 						return true
 					}
 					if msg.Event == "EOF" {
-						log.Debug("publisher close", log.Dict{
+						universal.Logger.Debug("publisher close", map[string]any{
 							"channelid": "{{ event_source }}::" + cq.ChannelID,
 						})
 						return false
@@ -97,7 +95,7 @@ func (s *Source) Listen(c *gin.Context) {
 					})
 					return true
 				} else {
-					log.Debug("channel close", log.Dict{
+					universal.Logger.Debug("channel close", map[string]any{
 						"channelid": "{{ event_source }}::" + cq.ChannelID,
 					})
 					return false
@@ -116,7 +114,7 @@ func (s *Source) Listen(c *gin.Context) {
 // @Router /event/{{ event_source }} [get]
 func (s *Source) ListenAll(c *gin.Context) {
 	ctx := context.Background()
-	pubsub := proxy.Proxy.Subscribe(ctx, "{{ event_source }}::global")
+	pubsub := universal.Channel.Subscribe(ctx, "{{ event_source }}::global")
 	ssech := pubsub.Channel()
 	defer func() {
 		pubsub.Unsubscribe(ctx)
@@ -129,7 +127,7 @@ func (s *Source) ListenAll(c *gin.Context) {
 		select {
 		case <-clientGone:
 			{
-				log.Debug("client close", log.Dict{
+				universal.Logger.Debug("client close", map[string]any{
 					"channelid": "{{ event_source }}::global",
 				})
 
@@ -138,17 +136,17 @@ func (s *Source) ListenAll(c *gin.Context) {
 		case message, isopen := <-ssech:
 			{
 				if isopen {
-					log.Debug("channel open", log.Dict{
+					universal.Logger.Debug("channel open", map[string]any{
 						"channelid": "{{ event_source }}::global",
 					})
 					msg := Event{}
 					err := json.UnmarshalFromString(message.Payload, &msg)
 					if err != nil {
-						log.Error("UnmarshalFromString error", log.Dict{"Payload": message.Payload})
+						universal.Logger.Error("UnmarshalFromString error", map[string]any{"Payload": message.Payload})
 						return true
 					}
 					if msg.Event == "EOF" {
-						log.Debug("publisher close", log.Dict{
+						universal.Logger.Debug("publisher close", map[string]any{
 							"channelid": "{{ event_source }}::global",
 						})
 						return false
@@ -161,7 +159,7 @@ func (s *Source) ListenAll(c *gin.Context) {
 					})
 					return true
 				} else {
-					log.Debug("channel close", log.Dict{
+					universal.Logger.Debug("channel close", map[string]any{
 						"channelid": "{{ event_source }}::global",
 					})
 					return false
@@ -175,9 +173,9 @@ func sendMsg(evt *Event, es string, withgolbal bool) error {
 	if err != nil {
 		return err
 	}
-	ctx, cancel := proxy.Proxy.NewCtx()
+	ctx, cancel := universal.Channel.NewCtx()
 	defer cancel()
-	pipe := proxy.Proxy.TxPipeline()
+	pipe := universal.Channel.TxPipeline()
 	pipe.Publish(ctx, "{{ event_source }}::"+es, msg)
 	if withgolbal {
 		pipe.Publish(ctx, "{{ event_source }}::global", msg)
@@ -208,9 +206,9 @@ func (s *Source) Create(c *gin.Context) {
 		return
 	}
 	es := uuid.NewV4().String()
-	ctx, cancel := proxy.Proxy.NewCtx()
+	ctx, cancel := universal.Channel.NewCtx()
 	defer cancel()
-	_, err = proxy.Proxy.SAdd(ctx, "{{ event_source }}::channels", es).Result()
+	_, err = universal.Channel.SAdd(ctx, "{{ event_source }}::channels", es).Result()
 	if err != nil {
 		c.PureJSON(http.StatusInternalServerError, &universal.ResultResponse{Message: err.Error()})
 		return
@@ -224,9 +222,9 @@ func (s *Source) Create(c *gin.Context) {
 				Data:  strconv.Itoa(count - i),
 			}, es, true)
 			if err != nil {
-				log.Error("sendMsg get error", log.Dict{"err": err.Error()})
+				universal.Logger.Error("sendMsg get error", map[string]any{"err": err.Error()})
 			} else {
-				log.Info("sendMsg ok")
+				universal.Logger.Info("sendMsg ok")
 			}
 			time.Sleep(time.Second)
 		}
@@ -235,13 +233,13 @@ func (s *Source) Create(c *gin.Context) {
 			Event: "EOF",
 		}, es, false)
 		if err != nil {
-			log.Error("sendMsg get error", log.Dict{"err": err.Error()})
+			universal.Logger.Error("sendMsg get error", map[string]any{"err": err.Error()})
 		} else {
-			log.Info("send EOF Msg ok")
+			universal.Logger.Info("send EOF Msg ok")
 		}
-		ctx, cancel := proxy.Proxy.NewCtx()
+		ctx, cancel := universal.Channel.NewCtx()
 		defer cancel()
-		_, err = proxy.Proxy.SRem(ctx, "{{ event_source }}::channels", es).Result()
+		_, err = universal.Channel.SRem(ctx, "{{ event_source }}::channels", es).Result()
 		if err != nil {
 			c.PureJSON(http.StatusInternalServerError, &universal.ResultResponse{Message: err.Error()})
 			return

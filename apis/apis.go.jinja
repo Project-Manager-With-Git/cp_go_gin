@@ -4,7 +4,9 @@ package apis
 
 import (
 	"{{ app_name }}/apis/{{ source }}namespace"
+	"{{ app_name }}/apis/universal"
 
+	log "github.com/Golang-Tools/loggerhelper/v2"
 	"github.com/Golang-Tools/optparams"
 	"github.com/gin-gonic/gin"
 )
@@ -14,5 +16,8 @@ func Init(app *gin.Engine, opts ...optparams.Option[Options]) {
 	RegistPing(app)
 	opt := DefaultOptions
 	optparams.GetOption(&opt, opts...)
+	log.Set(log.WithExtFields(log.Dict{"app_name": opt.AppName, "app_version": opt.AppVersion, "module": "apis"}))
+	universal.Logger = log.Export()
+	log.Set(log.WithExtFields(log.Dict{}))
 	{{ source }}namespace.Init(app.Group("/api/{{ source }}"), opt.AuthMiddlewareFactory)
 }
