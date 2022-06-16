@@ -1,4 +1,6 @@
-# cp_go_gin
+# cp_go_gin/v2
+
+V2基于golang 1.18,大量改用泛型实现,如果低版本的go语言编译器请使用v0版本
 
 使用gin构造http服务的组件集合
 
